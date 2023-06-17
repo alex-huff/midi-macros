@@ -37,7 +37,6 @@ class MacroTree:
     def recurseMacroTreeAndExecuteMacros(self, currentNode, position, pressed):
         keysLeftToProcess = len(pressed) - position
         if (keysLeftToProcess == 0):
-            print(f'Node: {currentNode}, Executing scripts: {currentNode.getScripts()}.')
             for script in currentNode.getScripts():
                 subprocess.Popen(script)
             return
@@ -49,11 +48,9 @@ class MacroTree:
                         playedChord = pressed[position:position + chordLength]
                         playedChord.sort()
                         if (tuple(playedChord) == trigger):
-                            print(f'Matched: {trigger}')
                             self.recurseMacroTreeAndExecuteMacros(nextNode, position + chordLength, pressed)
                 case int():
                     if (pressed[position] == trigger):
-                        print(f'Matched: {trigger}')
                         self.recurseMacroTreeAndExecuteMacros(nextNode, position + 1, pressed)
 
 class MacroTreeNode:
@@ -95,7 +92,6 @@ def parseMacroFile(macroFile):
         except ParseError as pe:
             print(f'Parsing ERROR: {pe.message}', file=sys.stderr)
             sys.exit(-1)
-        print(sequence, scripts)
         if (sequence != None and scripts != None):
             macroTree.addSequenceToTree(sequence, scripts)
     return macroTree
@@ -198,6 +194,5 @@ for message in inPort:
     else:
         if (lastMessageWasPress):
             macroTree.executeMacros(pressed)
-            print(pressed)
         pressed.remove(note)
     lastMessageWasPress = wasPress
