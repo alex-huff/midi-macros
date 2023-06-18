@@ -28,6 +28,9 @@ class MacroTree:
             currentNode.addScripts(scripts)
             return
         for trigger in sequence[i:]:
+            if (trigger == -1):
+                currentNode.setShouldPassExtraKeysAsArguments()
+                break
             currentNode = currentNode.setBranch(trigger, MacroTreeNode())
         currentNode.addScripts(scripts)
 
@@ -40,6 +43,12 @@ class MacroTree:
             for script in currentNode.getScripts():
                 subprocess.Popen(script)
             return
+        if (currentNode.shouldPassExtraKeysAsArguments()):
+            arguments = [str(note) for note in pressed[position:]]
+            for script in currentNode.getScripts():
+                command = [script]
+                command.extend(arguments)
+                subprocess.Popen(command)
         for trigger, nextNode in currentNode.getBranches().items():
             match trigger:
                 case tuple():
@@ -57,6 +66,7 @@ class MacroTreeNode:
     def __init__(self):
         self.branches = dict()
         self.scripts = []
+        self.passExtraKeysAsArguments = False
 
     def setBranch(self, trigger, nextNode):
         self.branches[trigger] = nextNode
@@ -77,6 +87,12 @@ class MacroTreeNode:
     def getScripts(self):
         return self.scripts
 
+    def setShouldPassExtraKeysAsArguments(self):
+        self.passExtraKeysAsArguments = True
+
+    def shouldPassExtraKeysAsArguments(self):
+        return self.passExtraKeysAsArguments
+
 def generateParseErrorMessage(line, position, expected, got):
     arrowLine = ' ' * position + '^'
     raise ParseError(f'Expected: {expected}, got: {got}.\nWhile parsing:\n{line},\n{arrowLine}')
@@ -93,6 +109,7 @@ def parseMacroFile(macroFile):
             print(f'Parsing ERROR: {pe.message}', file=sys.stderr)
             sys.exit(-1)
         if (sequence != None and scripts != None):
+            print(f'Adding macro {sequence} -> {scripts}')
             macroTree.addSequenceToTree(sequence, scripts)
     return macroTree
 
@@ -124,7 +141,9 @@ def parseSubMacro(line, position):
         return parseChord(line, position)
     if (nextChar.isdecimal()):
         return parseNote(line, position)
-    raise ParseError(generateParseErrorMessage(line, position, '( or [0-9]', nextChar))
+    if (nextChar == '*'):
+        return -1, position + 1
+    raise ParseError(generateParseErrorMessage(line, position, '(, * or [0-9]', nextChar))
 
 def parseChord(line, position):
     if (position == len(line)):
@@ -193,6 +212,7 @@ for message in inPort:
         pressed.append(note)
     else:
         if (lastMessageWasPress):
+            print(f'Evaluating pressed keys: {pressed}')
             macroTree.executeMacros(pressed)
         pressed.remove(note)
     lastMessageWasPress = wasPress
