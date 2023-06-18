@@ -209,9 +209,6 @@ def parseScripts(line, position):
         raise ParseError(f'Invalid script: {scriptString}.')
     return scripts
 
-
-midiDevice = 'Digital Piano MIDI 1'
-inPort = mido.open_input(midiDevice)
 configDirPath = user_config_dir('MIDIMacros')
 
 if (not os.path.exists(configDirPath)):
@@ -234,7 +231,10 @@ with open(macroFilePath, 'r') as macroFile:
 pressed = []
 pedalDown = False
 queuedReleases = set()
-lastMessageWasPress = False
+lastChangeWasAdd = False
+midiDevice = 'Digital Piano MIDI 1'
+inPort = mido.open_input(midiDevice)
+
 for message in inPort:
     if (message.type != 'note_on' and message.type != 'note_off' and (message.type != 'control_change' or message.control != 64)):
         continue
@@ -243,10 +243,10 @@ for message in inPort:
             pedalDown = True
         else:
             pedalDown = False
-            if (lastMessageWasPress and len(queuedReleases) > 0):
+            if (lastChangeWasAdd and len(queuedReleases) > 0):
                 print(f'Evaluating pressed keys: {pressed}')
                 macroTree.executeMacros(pressed)
-                lastMessageWasPress = False
+                lastChangeWasAdd = False
             for toRelease in queuedReleases:
                 pressed.remove(toRelease)
             queuedReleases.clear()
@@ -265,8 +265,8 @@ for message in inPort:
             queuedReleases.add(note)
             continue
         else:
-            if (lastMessageWasPress):
+            if (lastChangeWasAdd):
                 print(f'Evaluating pressed keys: {pressed}')
                 macroTree.executeMacros(pressed)
             pressed.remove(note)
-    lastMessageWasPress = wasPress
+    lastChangeWasAdd = wasPress
