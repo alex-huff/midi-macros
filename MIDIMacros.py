@@ -5,9 +5,11 @@ from glob import glob
 from appdirs import user_config_dir
 import mido
 
+
 class ParseError(Exception):
     def __init__(self, message):
         self.message = message
+
 
 class MacroTree:
     def __init__(self):
@@ -17,7 +19,8 @@ class MacroTree:
         return self.root
 
     def addSequenceToTree(self, sequence, scripts):
-        if (len(sequence) == 0): return
+        if (len(sequence) == 0):
+            return
         currentNode = self.root
         i = 0
         for i, trigger in enumerate(sequence):
@@ -57,10 +60,13 @@ class MacroTree:
                         playedChord = pressed[position:position + chordLength]
                         playedChord.sort()
                         if (tuple(playedChord) == trigger):
-                            self.recurseMacroTreeAndExecuteMacros(nextNode, position + chordLength, pressed)
+                            self.recurseMacroTreeAndExecuteMacros(
+                                nextNode, position + chordLength, pressed)
                 case int():
                     if (pressed[position] == trigger):
-                        self.recurseMacroTreeAndExecuteMacros(nextNode, position + 1, pressed)
+                        self.recurseMacroTreeAndExecuteMacros(
+                            nextNode, position + 1, pressed)
+
 
 class MacroTreeNode:
     def __init__(self):
@@ -93,9 +99,12 @@ class MacroTreeNode:
     def shouldPassExtraKeysAsArguments(self):
         return self.passExtraKeysAsArguments
 
+
 def generateParseErrorMessage(line, position, expected, got):
     arrowLine = ' ' * position + '^'
-    raise ParseError(f'Expected: {expected}, got: {got}.\nWhile parsing:\n{line},\n{arrowLine}')
+    raise ParseError(
+        f'Expected: {expected}, got: {got}.\nWhile parsing:\n{line},\n{arrowLine}')
+
 
 def parseMacroFile(macroFile):
     macroTree = MacroTree()
@@ -113,11 +122,14 @@ def parseMacroFile(macroFile):
             macroTree.addSequenceToTree(sequence, scripts)
     return macroTree
 
+
 def parseMacroFileLine(line):
     sequence, position = parseMacroDefinition(line, 0)
-    while (position < len(line) and line[position].isspace()): position += 1
+    while (position < len(line) and line[position].isspace()):
+        position += 1
     scripts = parseScripts(line, position)
     return sequence, scripts
+
 
 def parseMacroDefinition(line, position):
     sequence = []
@@ -125,17 +137,22 @@ def parseMacroDefinition(line, position):
         subSequence, position = parseSubMacro(line, position)
         sequence.append(subSequence)
         if (position == len(line)):
-            raise ParseError(generateParseErrorMessage(line, position, 'whitespace or +', 'EOL'))
+            raise ParseError(generateParseErrorMessage(
+                line, position, 'whitespace or +', 'EOL'))
         nextChar = line[position]
-        if (nextChar.isspace()): return sequence, position
+        if (nextChar.isspace()):
+            return sequence, position
         if (nextChar == '+'):
             position += 1
         else:
-            raise ParseError(generateParseErrorMessage(line, position, '+', nextChar))
+            raise ParseError(generateParseErrorMessage(
+                line, position, '+', nextChar))
+
 
 def parseSubMacro(line, position):
     if (position == len(line)):
-        raise ParseError(generateParseErrorMessage(line, position, '( or [0-9]', 'EOL'))
+        raise ParseError(generateParseErrorMessage(
+            line, position, '( or [0-9]', 'EOL'))
     nextChar = line[position]
     if (nextChar == '('):
         return parseChord(line, position)
@@ -143,19 +160,23 @@ def parseSubMacro(line, position):
         return parseNote(line, position)
     if (nextChar == '*'):
         return -1, position + 1
-    raise ParseError(generateParseErrorMessage(line, position, '(, * or [0-9]', nextChar))
+    raise ParseError(generateParseErrorMessage(
+        line, position, '(, * or [0-9]', nextChar))
+
 
 def parseChord(line, position):
     if (position == len(line)):
         raise ParseError(generateParseErrorMessage(line, position, '(', 'EOL'))
     if (line[position] != '('):
-        raise ParseError(generateParseErrorMessage(line, position, '(', line[position]))
+        raise ParseError(generateParseErrorMessage(
+            line, position, '(', line[position]))
     position += 1
     chord = []
     while (True):
         note, position = parseNote(line, position)
         if (position == len(line)):
-            raise ParseError(generateParseErrorMessage(line, position, ') or -', 'EOL'))
+            raise ParseError(generateParseErrorMessage(
+                line, position, ') or -', 'EOL'))
         chord.append(note)
         nextChar = line[position]
         if (nextChar == ')'):
@@ -164,23 +185,30 @@ def parseChord(line, position):
         if (nextChar == '-'):
             position += 1
         else:
-            raise ParseError(generateParseErrorMessage(line, position, '), or -', nextChar))
+            raise ParseError(generateParseErrorMessage(
+                line, position, '), or -', nextChar))
+
 
 def parseNote(line, position):
     if (position == len(line)):
-        raise ParseError(generateParseErrorMessage(line, position, '[0-9]', 'EOL'))
+        raise ParseError(generateParseErrorMessage(
+            line, position, '[0-9]', 'EOL'))
     startPosition = position
-    while (position < len(line) and line[position].isdigit()): position += 1
+    while (position < len(line) and line[position].isdigit()):
+        position += 1
     return int(line[startPosition:position]), position
+
 
 def parseScripts(line, position):
     if (position == len(line)):
-        raise ParseError(generateParseErrorMessage(line, position, 'script', 'EOL'))
+        raise ParseError(generateParseErrorMessage(
+            line, position, 'script', 'EOL'))
     scriptString = line[position:]
     scripts = glob(os.path.expanduser(scriptString))
     if (len(scripts) == 0):
         raise ParseError(f'Invalid script: {scriptString}.')
     return scripts
+
 
 midiDevice = 'Digital Piano MIDI 1'
 inPort = mido.open_input(midiDevice)
@@ -190,7 +218,8 @@ if (not os.path.exists(configDirPath)):
     print(f'Config directory {configDirPath} does not exist, creating it now.')
     os.makedirs(configDirPath)
 elif (not os.path.isdir(configDirPath)):
-    print(f'ERROR: Config directory {configDirPath} already exists as a file.', file=sys.stderr)
+    print(
+        f'ERROR: Config directory {configDirPath} already exists as a file.', file=sys.stderr)
     sys.exit(-1)
 
 macroFilePath = os.path.join(configDirPath, 'macros')
@@ -203,16 +232,41 @@ with open(macroFilePath, 'r') as macroFile:
     macroTree = parseMacroFile(macroFile)
 
 pressed = []
+pedalDown = False
+queuedReleases = set()
 lastMessageWasPress = False
 for message in inPort:
-    if (message.type != 'note_on' and message.type != 'note_off'): continue
+    if (message.type != 'note_on' and message.type != 'note_off' and (message.type != 'control_change' or message.control != 64)):
+        continue
+    if (message.type == 'control_change'):
+        if (message.value > 0):
+            pedalDown = True
+        else:
+            pedalDown = False
+            if (lastMessageWasPress and len(queuedReleases) > 0):
+                print(f'Evaluating pressed keys: {pressed}')
+                macroTree.executeMacros(pressed)
+                lastMessageWasPress = False
+            for toRelease in queuedReleases:
+                pressed.remove(toRelease)
+            queuedReleases.clear()
+        continue
     wasPress = message.type == 'note_on'
     note = message.note
     if (wasPress):
-        pressed.append(note)
+        if (note in queuedReleases):
+            queuedReleases.remove(note)
+        if (note not in pressed):
+            pressed.append(note)
+        else:
+            continue
     else:
-        if (lastMessageWasPress):
-            print(f'Evaluating pressed keys: {pressed}')
-            macroTree.executeMacros(pressed)
-        pressed.remove(note)
+        if (pedalDown):
+            queuedReleases.add(note)
+            continue
+        else:
+            if (lastMessageWasPress):
+                print(f'Evaluating pressed keys: {pressed}')
+                macroTree.executeMacros(pressed)
+            pressed.remove(note)
     lastMessageWasPress = wasPress
