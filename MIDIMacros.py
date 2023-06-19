@@ -248,7 +248,7 @@ for message in inPort:
                 macroTree.executeMacros(pressed)
                 lastChangeWasAdd = False
             for toRelease in queuedReleases:
-                pressed.remove(toRelease)
+                pressed = [n for n in pressed if n != toRelease]
             queuedReleases.clear()
         continue
     wasPress = message.type == 'note_on'
@@ -256,10 +256,7 @@ for message in inPort:
     if (wasPress):
         if (note in queuedReleases):
             queuedReleases.remove(note)
-        if (note not in pressed):
-            pressed.append(note)
-        else:
-            continue
+        pressed.append(note)
     else:
         if (pedalDown):
             queuedReleases.add(note)
@@ -268,5 +265,5 @@ for message in inPort:
             if (lastChangeWasAdd):
                 print(f'Evaluating pressed keys: {pressed}')
                 macroTree.executeMacros(pressed)
-            pressed.remove(note)
+            pressed = [n for n in pressed if n != note]
     lastChangeWasAdd = wasPress
