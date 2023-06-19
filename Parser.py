@@ -11,6 +11,7 @@ class ParseError(Exception):
         self.message = message
 
 
+lineContinuationRegex = re.compile(r'\\\s*\n')
 pitchRegexString = r'[A-Ga-g]'
 pitchRegex = re.compile(pitchRegexString)
 modifiers = '#♯b♭𝄪𝄫'
@@ -35,9 +36,15 @@ def getPrettySequence(sequence):
     return prettySequence
 
 
+def preprocessFile(macroFile):
+    fileString = macroFile.read()
+    return lineContinuationRegex.sub('', fileString)
+
+
 def parseMacroFile(macroFile):
     macroTree = MacroTree()
-    for line in macroFile.readlines():
+    processedText = preprocessFile(macroFile)
+    for line in processedText.split('\n'):
         if (len(line) == 0 or str.isspace(line)):
             continue
         line = line.strip()
