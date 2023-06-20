@@ -14,7 +14,7 @@ class MacroTree:
         if (len(sequence) == 0):
             return
         currentNode = self.root
-        argumentDefinition = False
+        argumentDefinition = None
         i = 0
         for i, trigger in enumerate(sequence):
             if (not currentNode.hasBranch(trigger)):
