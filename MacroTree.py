@@ -1,5 +1,8 @@
 import subprocess
 from MacroTreeNode import MacroTreeNode
+from ASPN import midiNoteToASPN
+from MacroArgument import MacroArgumentFormat
+from MacroArgument import MacroArgumentDefinition
 
 
 class MacroTree:
@@ -13,7 +16,7 @@ class MacroTree:
         if (len(sequence) == 0):
             return
         currentNode = self.root
-        shouldPassExtraArgumentsToScript = False
+        argumentDefinition = False
         i = 0
         for i, trigger in enumerate(sequence):
             if (not currentNode.hasBranch(trigger)):
@@ -23,11 +26,11 @@ class MacroTree:
             currentNode.addScript(script)
             return
         for trigger in sequence[i:]:
-            if (trigger == -1):
-                shouldPassExtraArgumentsToScript = True
+            if (isinstance(trigger, MacroArgumentDefinition)):
+                argumentDefinition = trigger
                 break
             currentNode = currentNode.setBranch(trigger, MacroTreeNode())
-        currentNode.addScript(script, shouldPassExtraArgumentsToScript)
+        currentNode.addScript(script, argumentDefinition)
 
     def executeMacros(self, pressed):
         self.recurseMacroTreeAndExecuteMacros(self.root, 0, pressed)
@@ -35,15 +38,26 @@ class MacroTree:
     def recurseMacroTreeAndExecuteMacros(self, currentNode, position, pressed):
         keysLeftToProcess = len(pressed) - position
         if (keysLeftToProcess == 0):
-            for script, _ in currentNode.getScripts():
+            for script, argumentDefinition in currentNode.getScripts():
+                if (argumentDefinition != None):
+                    replaceString = argumentDefinition.getReplaceString()
+                    if (replaceString != None):
+                        script = script.replace(replaceString, '')
                 subprocess.Popen(script, shell=True)
             return
-        for script, shouldPassExtraArgumentsToScript in currentNode.getScripts():
-            if (not shouldPassExtraArgumentsToScript): continue
-            arguments = [str(note) for note in pressed[position:]]
-            command = [script]
-            command.extend(arguments)
-            subprocess.Popen(' '.join(command), shell=True)
+        for script, argumentDefinition in currentNode.getScripts():
+            if (argumentDefinition == None):
+                continue
+            argumentFormat = argumentDefinition.getArgumentFormat()
+            replaceString = argumentDefinition.getReplaceString()
+            arguments = [(str(note) if argumentFormat == MacroArgumentFormat.MIDI else midiNoteToASPN(
+                note)) for note in pressed[position:]]
+            argumentString = ' '.join(arguments)
+            if (replaceString != None):
+                command = script.replace(replaceString, argumentString)
+            else:
+                command = f'{script} {argumentString}'
+            subprocess.Popen(command, shell=True)
         for trigger, nextNode in currentNode.getBranches().items():
             match trigger:
                 case tuple():

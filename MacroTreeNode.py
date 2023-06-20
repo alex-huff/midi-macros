@@ -16,8 +16,8 @@ class MacroTreeNode:
     def getBranches(self):
         return self.branches
 
-    def addScript(self, script, shouldPassExtraArgumentsToScript=False):
-        self.scripts.append((script, shouldPassExtraArgumentsToScript))
+    def addScript(self, script, argumentDefinition=None):
+        self.scripts.append((script, argumentDefinition))
 
     def getScripts(self):
         return self.scripts

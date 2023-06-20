@@ -1,6 +1,8 @@
 import sys
 import re
 import ASPN
+from MacroArgument import MacroArgumentFormat
+from MacroArgument import MacroArgumentDefinition
 from MacroTree import MacroTree
 
 
@@ -10,8 +12,7 @@ class ParseError(Exception):
 
 
 lineContinuationRegex = re.compile(r'\\\s*\n')
-pitchRegexString = r'[A-Ga-g]'
-pitchRegex = re.compile(pitchRegexString)
+pitchRegex = re.compile(r'[A-Ga-g]')
 modifiers = '#♯b♭𝄪𝄫'
 
 
@@ -52,17 +53,39 @@ def parseMacroFile(macroFile):
             print(f'Parsing ERROR: {pe.message}', file=sys.stderr)
             sys.exit(-1)
         if (sequence != None and script != None):
-            print(f'Adding macro {getPrettySequence(sequence)} -> {script}')
+            print(f'Adding macro {getPrettySequence(sequence)} → {script}')
             macroTree.addSequenceToTree(sequence, script)
     return macroTree
 
 
-def parseMacroFileLine(line):
-    sequence, position = parseMacroDefinition(line, 0)
+def eatWhitespace(line, position):
     while (position < len(line) and line[position].isspace()):
         position += 1
+    return position
+
+
+def parseMacroFileLine(line):
+    sequence, position = parseMacroDefinition(line, 0)
+    position = eatWhitespace(line, position)
+    position = parseArrow(line, position)
+    position = eatWhitespace(line, position)
     script = parseScripts(line, position)
     return sequence, script
+
+
+def parseArrow(line, position):
+    atEndOfLine = position == len(line)
+    if (atEndOfLine or line[position] not in '→-'):
+        raise ParseError(generateParseErrorMessage(
+            line, position, 'arrow operator (->, →)', 'EOL' if atEndOfLine else line[position]))
+    if (line[position] == '→'):
+        return position + 1
+    position += 1
+    atEndOfLine = position == len(line)
+    if (atEndOfLine or line[position] != '>'):
+        raise ParseError(generateParseErrorMessage(
+            line, position, '>', 'EOL' if atEndOfLine else line[position]))
+    return position + 1
 
 
 def parseMacroDefinition(line, position):
@@ -72,95 +95,87 @@ def parseMacroDefinition(line, position):
         sequence.append(subSequence)
         if (position == len(line)):
             raise ParseError(generateParseErrorMessage(
-                line, position, 'whitespace or +', 'EOL'))
+                line, position, '+ or arrow operator (->, →)', 'EOL'))
         nextChar = line[position]
-        if (nextChar.isspace()):
+        if (nextChar.isspace() or nextChar in '→-'):
             return sequence, position
         if (nextChar == '+'):
             position += 1
         else:
             raise ParseError(generateParseErrorMessage(
-                line, position, '+', nextChar))
+                line, position, '+ or arrow operator (->, →)', nextChar))
 
 
 def parseSubMacro(line, position):
     if (position == len(line)):
         raise ParseError(generateParseErrorMessage(
-            line, position, f'(, *, {pitchRegexString} or [0-9]', 'EOL'))
+            line, position, 'chord, note, or argument definition', 'EOL'))
     nextChar = line[position]
     if (nextChar == '('):
         return parseChord(line, position)
     if (nextChar.isdigit() or pitchRegex.match(nextChar) != None):
         return parseNote(line, position)
     if (nextChar == '*'):
-        return -1, position + 1
+        return parseArgumentDefinition(line, position)
     raise ParseError(generateParseErrorMessage(
-        line, position, f'(, *, {pitchRegexString} or [0-9]', nextChar))
+        line, position, 'chord, note, or argument definition', nextChar))
 
 
 def parseChord(line, position):
-    if (position == len(line)):
-        raise ParseError(generateParseErrorMessage(line, position, '(', 'EOL'))
-    if (line[position] != '('):
+    atEndOfLine = position == len(line)
+    if (atEndOfLine or line[position] != '('):
         raise ParseError(generateParseErrorMessage(
-            line, position, '(', line[position]))
+            line, position, 'chord', 'EOL' if atEndOfLine else line[position]))
     position += 1
     chord = []
     while (True):
         note, position = parseNote(line, position)
-        if (position == len(line)):
-            raise ParseError(generateParseErrorMessage(
-                line, position, ') or -', 'EOL'))
         chord.append(note)
-        nextChar = line[position]
-        if (nextChar == ')'):
+        atEndOfLine = position == len(line)
+        if (atEndOfLine or line[position] not in '-)'):
+            raise ParseError(generateParseErrorMessage(
+                line, position, '- or )', 'EOL' if atEndOfLine else line[position]))
+        if (line[position] == ')'):
             chord.sort()
             return tuple(chord), position + 1
-        if (nextChar == '-'):
-            position += 1
         else:
-            raise ParseError(generateParseErrorMessage(
-                line, position, '), or -', nextChar))
+            position += 1
 
 
 def parseNote(line, position):
-    if (position == len(line)):
+    atEndOfLine = position == len(line)
+    if (atEndOfLine or (not line[position].isdigit() and pitchRegex.match(line[position]) == None)):
         raise ParseError(generateParseErrorMessage(
-            line, position, f'{pitchRegexString} or [0-9]', 'EOL'))
+            line, position, 'note', 'EOL' if atEndOfLine else line[position]))
     if (line[position].isdigit()):
         return parseMIDINote(line, position)
-    elif (pitchRegex.match(line[position]) != None):
-        return parseASPNNote(line, position)
-    raise ParseError(generateParseErrorMessage(
-        line, position, f'{pitchRegexString} or [0-9]', line[position]))
+    return parseASPNNote(line, position)
 
 
 def parseMIDINote(line, position):
-    if (position == len(line)):
+    atEndOfLine = position == len(line)
+    if (atEndOfLine or not line[position].isdigit()):
         raise ParseError(generateParseErrorMessage(
-            line, position, '[0-9]', 'EOL'))
+            line, position, 'MIDI note', 'EOL' if atEndOfLine else line[position]))
     startPosition = position
+    position += 1
     while (position < len(line) and line[position].isdigit()):
         position += 1
-    if (position == startPosition):
-        raise ParseError(generateParseErrorMessage(
-            line, position, '[0-9]', line[position]))
     return int(line[startPosition:position]), position
 
 
 def parseASPNNote(line, position):
-    if (position == len(line)):
+    atEndOfLine = position == len(line)
+    if (atEndOfLine or pitchRegex.match(line[position]) == None):
         raise ParseError(generateParseErrorMessage(
-            line, position, f'{pitchRegexString}', 'EOL'))
-    if (pitchRegex.match(line[position]) == None):
-        raise ParseError(generateParseErrorMessage(
-            line, position, f'{pitchRegexString}', line[position]))
+            line, position, 'ASPN note', 'EOL' if atEndOfLine else line[position]))
     offset = 0
     basePitch = str.upper(line[position])
     position += 1
-    if (position == len(line)):
+    atEndOfLine = position == len(line)
+    if (atEndOfLine or (line[position] not in modifiers and line[position] != '-' and not line[position].isdigit())):
         raise ParseError(generateParseErrorMessage(
-            line, position, f'[{modifiers}], - or [0-9]', 'EOL'))
+            line, position, f'pitch modifiers ({modifiers}) or octave', 'EOL' if atEndOfLine else line[position]))
     if (line[position] in modifiers):
         offset, position = parseASPNModifiers(line, position)
     octave, position = parseASPNOctave(line, position)
@@ -170,7 +185,7 @@ def parseASPNNote(line, position):
 def parseASPNOctave(line, position):
     if (position == len(line)):
         raise ParseError(generateParseErrorMessage(
-            line, position, '- or [0-9]', 'EOL'))
+            line, position, 'octave', 'EOL'))
     modifier = 1
     if (line[position] == '-'):
         modifier = -1
@@ -180,17 +195,15 @@ def parseASPNOctave(line, position):
         position += 1
     if (position == startPosition):
         raise ParseError(generateParseErrorMessage(
-            line, position, '[0-9]' if modifier == -1 else '- or [0-9]', 'EOL'))
+            line, position, 'number' if modifier == -1 else 'octave', 'EOL'))
     return modifier * int(line[startPosition:position]), position
 
 
 def parseASPNModifiers(line, position):
-    if (position == len(line)):
+    atEndOfLine = position == len(line)
+    if (atEndOfLine or line[position] not in modifiers):
         raise ParseError(generateParseErrorMessage(
-            line, position, f'[{modifiers}]', 'EOL'))
-    if (line[position] not in modifiers):
-        raise ParseError(generateParseErrorMessage(
-            line, position, f'[{modifiers}]', line[position]))
+            line, position, f'pitch modifiers ({modifiers})', 'EOL' if atEndOfLine else line[position]))
     offset = 0
     while position < len(line):
         match line[position]:
@@ -208,14 +221,39 @@ def parseASPNModifiers(line, position):
     return offset, position
 
 
+def parseArgumentDefinition(line, position):
+    atEndOfLine = position == len(line)
+    if (atEndOfLine or line[position] != '*'):
+        raise ParseError(generateParseErrorMessage(
+            line, position, 'argument definition', 'EOL' if atEndOfLine else line[position]))
+    position += 1
+    argumentFormat, position = parseArgumentFormat(line, position)
+    atEndOfLine = position == len(line)
+    if (atEndOfLine):
+        raise ParseError(generateParseErrorMessage(
+            line, position, 'argument replace string, + or arrow operator (->, →)', 'EOL'))
+    replaceString = None
+    startPosition = position
+    while (position < len(line) and not str.isspace(line[position]) and line[position] not in '→-'):
+        position += 1
+    if (position != startPosition):
+        replaceString = line[startPosition:position]
+    return MacroArgumentDefinition(argumentFormat, replaceString), position
+
+
+def parseArgumentFormat(line, position):
+    atEndOfLine = position == len(line)
+    if (atEndOfLine or line[position] not in 'maMA'):
+        raise ParseError(generateParseErrorMessage(
+            line, position, 'argument format', 'EOL' if atEndOfLine else line[position]))
+    argumentFormat = MacroArgumentFormat.MIDI
+    if (line[position] in 'aA'):
+        argumentFormat = MacroArgumentFormat.ASPN
+    return argumentFormat, position + 1
+
+
 def parseScripts(line, position):
     if (position == len(line)):
         raise ParseError(generateParseErrorMessage(
             line, position, 'script', 'EOL'))
     return line[position:]
-    # scriptString = os.path.expanduser(scriptString)
-    # fileInPATH = shutil.which(scriptString)
-    # scripts = [fileInPATH] if fileInPATH != None else glob(scriptString)
-    # if (len(scripts) == 0):
-    #     raise ParseError(f'Invalid script: {scriptString}.')
-    # return scripts
