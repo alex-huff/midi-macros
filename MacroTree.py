@@ -9,24 +9,25 @@ class MacroTree:
     def getRoot(self):
         return self.root
 
-    def addSequenceToTree(self, sequence, scripts):
+    def addSequenceToTree(self, sequence, script):
         if (len(sequence) == 0):
             return
         currentNode = self.root
+        shouldPassExtraArgumentsToScript = False
         i = 0
         for i, trigger in enumerate(sequence):
             if (not currentNode.hasBranch(trigger)):
                 break
             currentNode = currentNode.getBranch(trigger)
         else:
-            currentNode.addScripts(scripts)
+            currentNode.addScript(script)
             return
         for trigger in sequence[i:]:
             if (trigger == -1):
-                currentNode.setShouldPassExtraKeysAsArguments()
+                shouldPassExtraArgumentsToScript = True
                 break
             currentNode = currentNode.setBranch(trigger, MacroTreeNode())
-        currentNode.addScripts(scripts)
+        currentNode.addScript(script, shouldPassExtraArgumentsToScript)
 
     def executeMacros(self, pressed):
         self.recurseMacroTreeAndExecuteMacros(self.root, 0, pressed)
@@ -34,15 +35,15 @@ class MacroTree:
     def recurseMacroTreeAndExecuteMacros(self, currentNode, position, pressed):
         keysLeftToProcess = len(pressed) - position
         if (keysLeftToProcess == 0):
-            for script in currentNode.getScripts():
-                subprocess.Popen(script)
+            for script, _ in currentNode.getScripts():
+                subprocess.Popen(script, shell=True)
             return
-        if (currentNode.shouldPassExtraKeysAsArguments()):
+        for script, shouldPassExtraArgumentsToScript in currentNode.getScripts():
+            if (not shouldPassExtraArgumentsToScript): continue
             arguments = [str(note) for note in pressed[position:]]
-            for script in currentNode.getScripts():
-                command = [script]
-                command.extend(arguments)
-                subprocess.Popen(command)
+            command = [script]
+            command.extend(arguments)
+            subprocess.Popen(' '.join(command), shell=True)
         for trigger, nextNode in currentNode.getBranches().items():
             match trigger:
                 case tuple():

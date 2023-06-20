@@ -1,8 +1,6 @@
 import sys
-import os
 import re
 import ASPN
-from glob import glob
 from MacroTree import MacroTree
 
 
@@ -20,7 +18,7 @@ modifiers = '#♯b♭𝄪𝄫'
 def generateParseErrorMessage(line, position, expected, got):
     arrowLine = ' ' * position + '^'
     raise ParseError(
-        f'Expected: {expected}, got: {got}.\nWhile parsing:\n{line},\n{arrowLine}')
+        f'\nExpected: {expected}\nGot: {got}\nWhile parsing:\n{line}\n{arrowLine}')
 
 
 def getPrettySequence(sequence):
@@ -49,13 +47,13 @@ def parseMacroFile(macroFile):
             continue
         line = line.strip()
         try:
-            sequence, scripts = parseMacroFileLine(line)
+            sequence, script = parseMacroFileLine(line)
         except ParseError as pe:
             print(f'Parsing ERROR: {pe.message}', file=sys.stderr)
             sys.exit(-1)
-        if (sequence != None and scripts != None):
-            print(f'Adding macro {getPrettySequence(sequence)} -> {scripts}')
-            macroTree.addSequenceToTree(sequence, scripts)
+        if (sequence != None and script != None):
+            print(f'Adding macro {getPrettySequence(sequence)} -> {script}')
+            macroTree.addSequenceToTree(sequence, script)
     return macroTree
 
 
@@ -63,8 +61,8 @@ def parseMacroFileLine(line):
     sequence, position = parseMacroDefinition(line, 0)
     while (position < len(line) and line[position].isspace()):
         position += 1
-    scripts = parseScripts(line, position)
-    return sequence, scripts
+    script = parseScripts(line, position)
+    return sequence, script
 
 
 def parseMacroDefinition(line, position):
@@ -214,8 +212,10 @@ def parseScripts(line, position):
     if (position == len(line)):
         raise ParseError(generateParseErrorMessage(
             line, position, 'script', 'EOL'))
-    scriptString = line[position:]
-    scripts = glob(os.path.expanduser(scriptString))
-    if (len(scripts) == 0):
-        raise ParseError(f'Invalid script: {scriptString}.')
-    return scripts
+    return line[position:]
+    # scriptString = os.path.expanduser(scriptString)
+    # fileInPATH = shutil.which(scriptString)
+    # scripts = [fileInPATH] if fileInPATH != None else glob(scriptString)
+    # if (len(scripts) == 0):
+    #     raise ParseError(f'Invalid script: {scriptString}.')
+    # return scripts

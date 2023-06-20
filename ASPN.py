@@ -1,7 +1,7 @@
 import math
 
-octavePositionToPitch = ['C', 'C#', 'D', 'D#',
-                         'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
+octavePositionToPitch = ['C', 'C♯', 'D', 'D♯',
+                         'E', 'F', 'F♯', 'G', 'G♯', 'A', 'A♯', 'B']
 pitchToOctavePosition = {
     'C': 0,
     'D': 2,
