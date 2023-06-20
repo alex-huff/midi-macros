@@ -1,7 +1,9 @@
 import math
 
-octavePositionToPitch = ['C', 'C♯', 'D', 'D♯',
-                         'E', 'F', 'F♯', 'G', 'G♯', 'A', 'A♯', 'B']
+octavePositionToPitch = ['C', 'C#', 'D', 'D#',
+                         'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
+octavePositionToPitchUnicode = ['C', 'C♯', 'D', 'D♯',
+                                'E', 'F', 'F♯', 'G', 'G♯', 'A', 'A♯', 'B']
 pitchToOctavePosition = {
     'C': 0,
     'D': 2,
@@ -13,9 +15,10 @@ pitchToOctavePosition = {
 }
 
 
-def midiNoteToASPN(note):
+def midiNoteToASPN(note, unicode=True):
+    pitchResolver = octavePositionToPitchUnicode if unicode else octavePositionToPitch
     octave = math.floor((note - 12) / 12)
-    pitch = octavePositionToPitch[(note - 12) % 12]
+    pitch = pitchResolver[(note - 12) % 12]
     return f'{pitch}{octave}'
 
 

@@ -1,7 +1,5 @@
 import subprocess
 from MacroTreeNode import MacroTreeNode
-from ASPN import midiNoteToASPN
-from MacroArgument import MacroArgumentFormat
 from MacroArgument import MacroArgumentDefinition
 
 
@@ -35,29 +33,34 @@ class MacroTree:
     def executeMacros(self, pressed):
         self.recurseMacroTreeAndExecuteMacros(self.root, 0, pressed)
 
-    def recurseMacroTreeAndExecuteMacros(self, currentNode, position, pressed):
-        keysLeftToProcess = len(pressed) - position
-        if (keysLeftToProcess == 0):
-            for script, argumentDefinition in currentNode.getScripts():
-                if (argumentDefinition != None):
-                    replaceString = argumentDefinition.getReplaceString()
-                    if (replaceString != None):
-                        script = script.replace(replaceString, '')
-                subprocess.Popen(script, shell=True)
-            return
+    def executeNoArgScripts(self, currentNode):
+        for script, argumentDefinition in currentNode.getScripts():
+            if (argumentDefinition != None and argumentDefinition.getReplaceString() != None):
+                script = script.replace(
+                    argumentDefinition.getReplaceString(), '')
+            subprocess.Popen(script, shell=True)
+
+    def executeScripts(self, currentNode, pressed, position):
         for script, argumentDefinition in currentNode.getScripts():
             if (argumentDefinition == None):
                 continue
             argumentFormat = argumentDefinition.getArgumentFormat()
             replaceString = argumentDefinition.getReplaceString()
-            arguments = [(str(note) if argumentFormat == MacroArgumentFormat.MIDI else midiNoteToASPN(
-                note)) for note in pressed[position:]]
+            arguments = [argumentFormat.toMacroArgument(
+                note) for note in pressed[position:]]
             argumentString = ' '.join(arguments)
             if (replaceString != None):
                 command = script.replace(replaceString, argumentString)
             else:
                 command = f'{script} {argumentString}'
             subprocess.Popen(command, shell=True)
+
+    def recurseMacroTreeAndExecuteMacros(self, currentNode, position, pressed):
+        keysLeftToProcess = len(pressed) - position
+        if (keysLeftToProcess == 0):
+            self.executeNoArgScripts(currentNode)
+            return
+        self.executeScripts(currentNode, pressed, position)
         for trigger, nextNode in currentNode.getBranches().items():
             match trigger:
                 case tuple():
