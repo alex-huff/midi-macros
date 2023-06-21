@@ -27,8 +27,9 @@ modifiers = '#♯b♭𝄪𝄫'
 
 def generateParseError(line, position, expected, got):
     arrowLine = ' ' * position + '^'
+    gotString = f'Got: {got}\n' if got != None else ''
     raise ParseError(
-        f'\nExpected: {expected}\nGot: {got}\nWhile parsing:\n{line}\n{arrowLine}')
+        f'\nExpected: {expected}\n{gotString}While parsing:\n{line}\n{arrowLine}')
 
 
 def generateInvalidMIDIError(line, position, note):
@@ -227,40 +228,67 @@ def parseASPNModifiers(line, position):
     return offset, position
 
 
+def parseExpectedString(line, position, expected):
+    end = position + len(expected)
+    actual = line[position:end]
+    if (actual != expected):
+        generateParseError(line, position, expected, actual)
+    return actual, end
+
+
+def parseOneOfExpectedStrings(line, position, expectedStrings):
+    for expected in expectedStrings:
+        end = position + len(expected)
+        if (end >= len(line)):
+            continue
+        actual = line[position:end]
+        if (actual == expected):
+            return actual, end
+    generateParseError(
+        line, position, f'one of {"|".join(expectedStrings)}', None)
+
+
 def parseArgumentDefinition(line, position):
-    if (line[position] != '*'):
-        generateParseError(
-            line, position, 'argument definition', line[position])
-    position += 1
-    argumentFormat, position = parseArgumentFormat(line, position)
-    replaceString, position = parseReplaceString(line, position)
-    return MacroArgumentDefinition(argumentFormat, replaceString), position
-
-
-def parseReplaceString(line, position):
+    parseExpectedString(line, position, '*(')
+    position += 2
     replaceString = None
+    if (line[position] == '"'):
+        replaceString, position = parseDoubleQuotedString(line, position)
+        position = eatWhitespace(line, position)
+        position = parseArrow(line, position)
+        position = eatWhitespace(line, position)
+    argumentFormat, position = parseArgumentFormat(line, position)
+    if (line[position] != ')'):
+        generateParseError(line, position, ')', line[position])
+    return MacroArgumentDefinition(argumentFormat, replaceString), position + 1
+
+
+def parseDoubleQuotedString(line, position):
+    if (line[position] != '"'):
+        generateParseError(
+            line, position, 'double quoted string', line[position])
+    position += 1
     startPosition = position
-    while (not str.isspace(line[position]) and line[position] not in '→-'):
+    while (line[position] != '"'):
         position += 1
-    if (position != startPosition):
-        replaceString = line[startPosition:position]
-    return replaceString, position
+    string = line[startPosition:position]
+    return string, position + 1
 
 
 def parseArgumentFormat(line, position):
-    if (line[position] not in 'maAp'):
-        generateParseError(
-            line, position, 'argument format (m, a, A, or p)', line[position])
-    match line[position]:
-        case 'a':
-            argumentFormat = MacroArgumentFormat.ASPN
-        case 'A':
-            argumentFormat = MacroArgumentFormat.ASPN_UNICODE
-        case 'p':
-            argumentFormat = MacroArgumentFormat.PIANO
-        case _:
+    formatString, position = parseOneOfExpectedStrings(
+        line, position, [f.name for f in MacroArgumentFormat])
+    argumentFormat = None
+    match formatString:
+        case 'MIDI':
             argumentFormat = MacroArgumentFormat.MIDI
-    return argumentFormat, position + 1
+        case 'ASPN':
+            argumentFormat = MacroArgumentFormat.ASPN
+        case 'ASPN_UNICODE':
+            argumentFormat = MacroArgumentFormat.ASPN_UNICODE
+        case _:
+            argumentFormat = MacroArgumentFormat.PIANO
+    return argumentFormat, position
 
 
 def parseScripts(line, position):
