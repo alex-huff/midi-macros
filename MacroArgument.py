@@ -32,5 +32,5 @@ class MacroArgumentDefinition:
         return self.replaceString
 
     def __str__(self):
-        replaceDefinitionString = f'{self.replaceString}→' if self.replaceString != None else ''
-        return (f'Arguments({replaceDefinitionString}{self.argumentFormat.name})')
+        replaceDefinitionString = f'"{self.replaceString}"→' if self.replaceString != None else ''
+        return (f'*({replaceDefinitionString}{self.argumentFormat.name})')
