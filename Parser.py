@@ -45,15 +45,21 @@ def getPrettySequenceString(sequence):
                 prettySequence.append(subSequence.__str__())
             case tuple():
                 prettySequence.append(
-                    f'({"|".join([ASPN.midiNoteToASPN(n) for n in subSequence])})')
+                    f'({"|".join((ASPN.midiNoteToASPN(n) for n in subSequence))})')
             case int():
                 prettySequence.append(ASPN.midiNoteToASPN(subSequence))
     return '+'.join(prettySequence)
 
 
 def preprocessFile(macroFile):
-    fileString = macroFile.read()
-    return lineContinuationRegex.sub('', fileString)
+    return lineContinuationRegex.sub('', macroFile.read())
+
+
+def validateMacroSequence(sequence):
+    for subSequence in (subSequence for i, subSequence in enumerate(sequence) if isinstance(subSequence, MacroArgumentDefinition) and i < len(sequence) - 1):
+        print(
+            f'Argument definition: {subSequence} found not at end of macro', file=sys.stderr)
+        sys.exit(-1)
 
 
 def parseMacroFile(macroFile):
@@ -70,6 +76,7 @@ def parseMacroFile(macroFile):
         except ParseError as pe:
             print(f'Parsing ERROR: {pe.message}', file=sys.stderr)
             sys.exit(-1)
+        validateMacroSequence(sequence)
         print(
             f'Adding macro {getPrettySequenceString(sequence)} → {script}')
         macroTree.addSequenceToTree(sequence, script)
@@ -285,7 +292,7 @@ def parseDoubleQuotedString(line, position):
 
 def parseArgumentFormat(line, position):
     formatString, position = parseOneOfExpectedStrings(
-        line, position, [f.name for f in MacroArgumentFormat])
+        line, position, (f.name for f in MacroArgumentFormat))
     return MacroArgumentFormat.__members__[formatString], position
 
 
