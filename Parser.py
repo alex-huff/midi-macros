@@ -62,9 +62,11 @@ def parseMacroFile(macroFile):
     for line in processedText.split('\n'):
         if (len(line) == 0 or str.isspace(line)):
             continue
-        line = ParseBuffer(line.strip())
+        line = ParseBuffer(line)
+        position = 0
+        position = eatWhitespace(line, position)
         try:
-            sequence, script = parseMacroFileLine(line)
+            sequence, script = parseMacroFileLine(line, position)
         except ParseError as pe:
             print(f'Parsing ERROR: {pe.message}', file=sys.stderr)
             sys.exit(-1)
@@ -80,8 +82,8 @@ def eatWhitespace(line, position):
     return position
 
 
-def parseMacroFileLine(line):
-    sequence, position = parseMacroDefinition(line, 0)
+def parseMacroFileLine(line, position):
+    sequence, position = parseMacroDefinition(line, position)
     position = eatWhitespace(line, position)
     position = parseArrow(line, position)
     position = eatWhitespace(line, position)
@@ -105,8 +107,10 @@ def parseArrow(line, position):
 def parseMacroDefinition(line, position):
     sequence = []
     while (True):
+        position = eatWhitespace(line, position)
         subSequence, position = parseSubMacro(line, position)
         sequence.append(subSequence)
+        position = eatWhitespace(line, position)
         nextChar = line[position]
         if (nextChar.isspace() or nextChar in '→-'):
             return sequence, position
@@ -136,8 +140,10 @@ def parseChord(line, position):
     position += 1
     chord = []
     while (True):
+        position = eatWhitespace(line, position)
         note, position = parseNote(line, position)
         chord.append(note)
+        position = eatWhitespace(line, position)
         if (line[position] not in '|)'):
             generateParseError(
                 line, position, '| or )', line[position])
@@ -251,6 +257,7 @@ def parseOneOfExpectedStrings(line, position, expectedStrings):
 def parseArgumentDefinition(line, position):
     parseExpectedString(line, position, '*(')
     position += 2
+    position = eatWhitespace(line, position)
     replaceString = None
     if (line[position] == '"'):
         replaceString, position = parseDoubleQuotedString(line, position)
@@ -258,6 +265,7 @@ def parseArgumentDefinition(line, position):
         position = parseArrow(line, position)
         position = eatWhitespace(line, position)
     argumentFormat, position = parseArgumentFormat(line, position)
+    position = eatWhitespace(line, position)
     if (line[position] != ')'):
         generateParseError(line, position, ')', line[position])
     return MacroArgumentDefinition(argumentFormat, replaceString), position + 1
