@@ -278,17 +278,7 @@ def parseDoubleQuotedString(line, position):
 def parseArgumentFormat(line, position):
     formatString, position = parseOneOfExpectedStrings(
         line, position, [f.name for f in MacroArgumentFormat])
-    argumentFormat = None
-    match formatString:
-        case 'MIDI':
-            argumentFormat = MacroArgumentFormat.MIDI
-        case 'ASPN':
-            argumentFormat = MacroArgumentFormat.ASPN
-        case 'ASPN_UNICODE':
-            argumentFormat = MacroArgumentFormat.ASPN_UNICODE
-        case _:
-            argumentFormat = MacroArgumentFormat.PIANO
-    return argumentFormat, position
+    return MacroArgumentFormat.__members__[formatString], position
 
 
 def parseScripts(line, position):
