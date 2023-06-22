@@ -58,7 +58,7 @@ def preprocessFile(macroFile):
 def validateMacroSequence(sequence):
     for subSequence in (subSequence for i, subSequence in enumerate(sequence) if isinstance(subSequence, MacroArgumentDefinition) and i < len(sequence) - 1):
         print(
-            f'Argument definition: {subSequence} found not at end of macro', file=sys.stderr)
+            f'ERROR: Argument definition: {subSequence} found not at end of macro', file=sys.stderr)
         sys.exit(-1)
 
 
