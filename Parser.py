@@ -23,6 +23,14 @@ class ParseBuffer(str):
 lineContinuationRegex = re.compile(r'\\\s*\n')
 basePitchRegex = re.compile(r'[A-Ga-g]')
 modifiers = '#♯b♭𝄪𝄫'
+argumentFormatShorthands = 'mpaAv'
+argumentFormatShorthandMAF = {
+    'm': MacroArgumentFormat.MIDI,
+    'p': MacroArgumentFormat.PIANO,
+    'a': MacroArgumentFormat.ASPN,
+    'A': MacroArgumentFormat.ASPN_UNICODE,
+    'v': MacroArgumentFormat.VELOCITY,
+}
 
 
 def generateParseError(line, position, expected, got):
@@ -40,7 +48,7 @@ def generateInvalidMIDIError(line, position, note):
 def getPrettySequenceString(sequence):
     prettySequence = []
     for subSequence in sequence:
-        match subSequence:
+        match (subSequence):
             case MacroArgumentDefinition():
                 prettySequence.append(subSequence.__str__())
             case tuple():
@@ -226,7 +234,7 @@ def parseASPNModifiers(line, position):
             line, position, f'pitch modifiers ({modifiers})', line[position])
     offset = 0
     while True:
-        match line[position]:
+        match (line[position]):
             case '#' | '♯':
                 offset += 1
             case 'b' | '♭':
@@ -271,7 +279,10 @@ def parseArgumentDefinition(line, position):
         position = eatWhitespace(line, position)
         position = parseArrow(line, position)
         position = eatWhitespace(line, position)
-    argumentFormat, position = parseArgumentFormat(line, position)
+    if (line[position] == 'f'):
+        argumentFormat, position = parseFStringArgumentFormat(line, position)
+    else:
+        argumentFormat, position = parseArgumentFormat(line, position)
     position = eatWhitespace(line, position)
     if (line[position] != ')'):
         generateParseError(line, position, ')', line[position])
@@ -279,21 +290,77 @@ def parseArgumentDefinition(line, position):
 
 
 def parseDoubleQuotedString(line, position):
+    rawString, line = readDoubleQuotedString(line, position)
+    try:
+        decodedString = decodeCStyleEscapes(rawString)
+    except UnicodeDecodeError as ude:
+        raise ParseError(f'Failed to decode string: {rawString}, {ude.reason}')
+    return decodedString, line
+
+
+def readDoubleQuotedString(line, position):
     if (line[position] != '"'):
         generateParseError(
             line, position, 'double quoted string', line[position])
     position += 1
     startPosition = position
-    while (line[position] != '"'):
+    escaping = False
+    while (True):
+        currentChar = line[position]
+        if (currentChar == '"' and not escaping):
+            break
+        escaping = not escaping if currentChar == '\\' else False
         position += 1
     string = line[startPosition:position]
     return string, position + 1
 
 
+def decodeCStyleEscapes(string):
+    return string.encode('latin1', 'backslashreplace').decode('unicode-escape')
+
+
 def parseArgumentFormat(line, position):
     formatString, position = parseOneOfExpectedStrings(
-        line, position, (f.name for f in MacroArgumentFormat))
+        line, position, [f.name for f in MacroArgumentFormat])
     return MacroArgumentFormat.__members__[formatString], position
+
+
+def parseFStringArgumentFormat(line, position):
+    if (line[position] != 'f'):
+        generateParseError(
+            line, position, 'f-string argument format', line[position])
+    position += 1
+    fString, position = parseDoubleQuotedString(line, position)
+    argumentFormat = []
+    stringBuilder = []
+    escaping = False
+    currentStringStart = 0
+
+    def addStringBuilderToArgumentFormat():
+        if (len(stringBuilder) == 0):
+            return
+        argumentFormat.append(''.join(stringBuilder))
+        stringBuilder.clear()
+
+    def addToStringBuilder(end=None):
+        stringBuilder.append(fString[currentStringStart:end])
+
+    for i, char in enumerate(fString):
+        if (escaping and char == '%'):
+            addToStringBuilder(i)
+            currentStringStart = i + 1
+        elif (escaping and char in argumentFormatShorthands):
+            macroArgumentFormat = argumentFormatShorthandMAF[char]
+            if (i - 1 > currentStringStart):
+                addToStringBuilder(i - 1)
+                addStringBuilderToArgumentFormat()
+            argumentFormat.append(macroArgumentFormat)
+            currentStringStart = i + 1
+        escaping = not escaping if char == '%' else False
+    if (currentStringStart != len(fString)):
+        addToStringBuilder()
+    addStringBuilderToArgumentFormat()
+    return argumentFormat, position
 
 
 def parseScripts(line, position):

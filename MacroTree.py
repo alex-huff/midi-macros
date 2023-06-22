@@ -1,6 +1,7 @@
 import subprocess
+import re
 from MacroTreeNode import MacroTreeNode
-from MacroArgument import MacroArgumentDefinition
+from MacroArgument import MacroArgumentDefinition, MacroArgumentFormat
 
 
 class MacroTree:
@@ -46,9 +47,13 @@ class MacroTree:
                 continue
             argumentFormat = argumentDefinition.getArgumentFormat()
             replaceString = argumentDefinition.getReplaceString()
-            arguments = [argumentFormat.toMacroArgument(
-                note) for note in pressed[position:]]
-            argumentString = ' '.join(arguments)
+            if (isinstance(argumentFormat, MacroArgumentFormat)):
+                argumentGenerator = (argumentFormat.toMacroArgument(
+                    n, v) for n, v in pressed[position:])
+            else:
+                argumentGenerator = (''.join(af if isinstance(af, str) else af.toMacroArgument(
+                    n, v) for af in argumentFormat) for n, v in pressed[position:])
+            argumentString = ' '.join(argumentGenerator)
             if (replaceString != None):
                 command = script.replace(replaceString, argumentString)
             else:
@@ -62,16 +67,17 @@ class MacroTree:
             return
         self.executeScripts(currentNode, pressed, position)
         for trigger, nextNode in currentNode.getBranches().items():
-            match trigger:
+            match (trigger):
                 case tuple():
                     chordLength = len(trigger)
                     if (chordLength <= keysLeftToProcess):
-                        playedChord = pressed[position:position + chordLength]
+                        playedChord = [n for n, _ in pressed[position:position + chordLength]]
                         playedChord.sort()
                         if (tuple(playedChord) == trigger):
                             self.recurseMacroTreeAndExecuteMacros(
                                 nextNode, position + chordLength, pressed)
                 case int():
-                    if (pressed[position] == trigger):
+                    n, _ = pressed[position]
+                    if (n == trigger):
                         self.recurseMacroTreeAndExecuteMacros(
                             nextNode, position + 1, pressed)

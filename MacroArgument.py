@@ -7,9 +7,10 @@ class MacroArgumentFormat(Enum):
     ASPN = 1
     ASPN_UNICODE = 2
     PIANO = 3
+    VELOCITY = 4
 
-    def toMacroArgument(self, note):
-        match self:
+    def toMacroArgument(self, note, velocity):
+        match (self):
             case MacroArgumentFormat.MIDI:
                 return str(note)
             case MacroArgumentFormat.ASPN:
@@ -18,6 +19,8 @@ class MacroArgumentFormat(Enum):
                 return midiNoteToASPN(note)
             case MacroArgumentFormat.PIANO:
                 return str(note - 20)
+            case MacroArgumentFormat.VELOCITY:
+                return str(velocity)
 
 
 class MacroArgumentDefinition:
@@ -33,4 +36,6 @@ class MacroArgumentDefinition:
 
     def __str__(self):
         replaceDefinitionString = f'"{self.replaceString}"→' if self.replaceString != None else ''
-        return (f'*({replaceDefinitionString}{self.argumentFormat.name})')
+        argumentFormatString = self.argumentFormat.name if isinstance(self.argumentFormat, MacroArgumentFormat) else '|'.join(
+            (s if isinstance(s, str) else str(s) for s in self.argumentFormat))
+        return (f'*({replaceDefinitionString}{argumentFormatString})')

@@ -8,7 +8,7 @@ import mido
 
 def executeMacros(macroTree, pressed):
     print(
-        f'Evaluating pressed keys: {[ASPN.midiNoteToASPN(n) for n in pressed]}')
+        f'Evaluating pressed keys: {[ASPN.midiNoteToASPN(n) for n, _ in pressed]}')
     macroTree.executeMacros(pressed)
 
 
@@ -49,16 +49,16 @@ for message in inPort:
             if (lastChangeWasAdd and len(queuedReleases) > 0):
                 executeMacros(macroTree, pressed)
                 lastChangeWasAdd = False
-            for toRelease in queuedReleases:
-                pressed = [n for n in pressed if n != toRelease]
+            pressed = [nv for nv in pressed if nv[0] not in queuedReleases]
             queuedReleases.clear()
         continue
     wasPress = message.type == 'note_on'
     note = message.note
+    velocity = message.velocity
     if (wasPress):
         if (note in queuedReleases):
             queuedReleases.remove(note)
-        pressed.append(note)
+        pressed.append((note, velocity))
     else:
         if (pedalDown):
             queuedReleases.add(note)
@@ -66,5 +66,5 @@ for message in inPort:
         else:
             if (lastChangeWasAdd):
                 executeMacros(macroTree, pressed)
-            pressed = [n for n in pressed if n != note]
+            pressed = [nv for nv in pressed if nv[0] != note]
     lastChangeWasAdd = wasPress
