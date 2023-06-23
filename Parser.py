@@ -35,9 +35,10 @@ argumentFormatShorthandToMAF = {
 
 def generateParseError(line, position, expected, got):
     arrowLine = ' ' * position + '^'
-    gotString = f'Got: {got}\n' if got != None else ''
+    expectedString = f'Expected: {expected}\n' if expected else ''
+    gotString = f'Got: {got}\n' if got else ''
     raise ParseError(
-        f'\nExpected: {expected}\n{gotString}While parsing:\n{line}\n{arrowLine}')
+        f'\n{expectedString}{gotString}While parsing:\n{line}\n{arrowLine}')
 
 
 def generateInvalidMIDIError(line, position, note):
@@ -45,17 +46,24 @@ def generateInvalidMIDIError(line, position, note):
     raise ParseError(f'\nInvalid MIDI note: {note}\n{line}\n{arrowLine}')
 
 
+def getPrettyNoteString(note):
+    velocityPredicateString = f'({note[1]})' if note[1] != 'True' else ''
+    return f'{ASPN.midiNoteToASPN(note[0])}{velocityPredicateString}'
+
+
 def getPrettySequenceString(sequence):
     prettySequence = []
     for subSequence in sequence:
         match (subSequence):
-            case MacroArgumentDefinition():
+            case (MacroArgumentDefinition()):
                 prettySequence.append(subSequence.__str__())
-            case tuple():
-                prettySequence.append(
-                    f'({"|".join((ASPN.midiNoteToASPN(n) for n in subSequence))})')
-            case int():
-                prettySequence.append(ASPN.midiNoteToASPN(subSequence))
+            case (tuple()):
+                assert (len(subSequence) > 0)
+                if (isinstance(subSequence[0], tuple)):
+                    prettySequence.append(
+                        f'({"|".join((getPrettyNoteString(n) for n in subSequence))})')
+                else:
+                    prettySequence.append(getPrettyNoteString(subSequence))
     return '+'.join(prettySequence)
 
 
@@ -128,21 +136,16 @@ def parseMacroDefinition(line, position):
         subSequence, position = parseSubMacro(line, position)
         sequence.append(subSequence)
         position = eatWhitespace(line, position)
-        nextChar = line[position]
-        if (nextChar.isspace() or nextChar in '→-'):
+        if (line[position] != '+'):
             return sequence, position
-        if (nextChar == '+'):
-            position += 1
-        else:
-            generateParseError(
-                line, position, '+ or arrow operator (->, →)', nextChar)
+        position += 1
 
 
 def parseSubMacro(line, position):
     nextChar = line[position]
     if (nextChar == '('):
         return parseChord(line, position)
-    if (nextChar.isdigit() or basePitchRegex.match(nextChar) != None):
+    if (nextChar.isdigit() or basePitchRegex.match(nextChar)):
         return parseNote(line, position)
     if (nextChar == '*'):
         return parseArgumentDefinition(line, position)
@@ -165,10 +168,9 @@ def parseChord(line, position):
             generateParseError(
                 line, position, '| or )', line[position])
         if (line[position] == ')'):
-            chord.sort()
+            chord.sort(key=lambda n: n[0])
             return tuple(chord), position + 1
-        else:
-            position += 1
+        position += 1
 
 
 def inMidiRange(note):
@@ -176,7 +178,7 @@ def inMidiRange(note):
 
 
 def parseNote(line, position):
-    if (not line[position].isdigit() and basePitchRegex.match(line[position]) == None):
+    if (not line[position].isdigit() and not basePitchRegex.match(line[position])):
         generateParseError(
             line, position, 'note', line[position])
     startPosition = position
@@ -186,11 +188,14 @@ def parseNote(line, position):
         note, position = parseASPNNote(line, position)
     if (not inMidiRange(note)):
         generateInvalidMIDIError(line, startPosition, note)
-    return note, position
+    velocityPredicate = 'True'
+    if (line[position] == '('):
+        velocityPredicate, position = parseVelocityPredicate(line, position)
+    return (note, velocityPredicate), position
 
 
 def parseASPNNote(line, position):
-    if (basePitchRegex.match(line[position]) == None):
+    if (not basePitchRegex.match(line[position])):
         generateParseError(
             line, position, 'ASPN note', line[position])
     offset = 0
@@ -221,18 +226,43 @@ def parseASPNModifiers(line, position):
     offset = 0
     while True:
         match (line[position]):
-            case '#' | '♯':
+            case ('#' | '♯'):
                 offset += 1
-            case 'b' | '♭':
+            case ('b' | '♭'):
                 offset -= 1
-            case '𝄪':
+            case ('𝄪'):
                 offset += 2
-            case '𝄫':
+            case ('𝄫'):
                 offset -= 2
-            case _:
+            case (_):
                 break
         position += 1
     return offset, position
+
+
+def parseVelocityPredicate(line, position):
+    if (line[position] != '('):
+        generateParseError(
+            line, position, 'velocity predicate', line[position])
+    position += 1
+    startPosition = position
+    numOpenParens = 0
+    while (numOpenParens > 0 or line[position] != ')'):
+        match (line[position]):
+            case ('('):
+                numOpenParens += 1
+            case (')'):
+                numOpenParens -= 1
+            case ('"' | "'"):
+                generateParseError(line, position, None,
+                                   'illegal quote in velocity predicate')
+        if (numOpenParens < 0):
+            generateParseError(line, position, None, 'unmatched parenthesis')
+        position += 1
+    if (startPosition == position):
+        generateParseError(line, position, 'velocity predicate', 'nothing')
+    velocityPredicate = line[startPosition:position].strip()
+    return velocityPredicate, position + 1
 
 
 def parseExpectedString(line, position, expected):
@@ -260,31 +290,36 @@ def parseArgumentDefinition(line, position):
         generateParseError(line, position, '*', line[position])
     position += 1
     if (line[position] not in '(['):
-        generateParseError(line, position, 'argument number range or argument definition body', line[position])
+        generateParseError(
+            line, position, 'argument number range or argument definition body', line[position])
+    argumentNumberRange = UNBOUNDED_MANR
     if (line[position] == '['):
-        argumentNumberRange, position = parseArgumentNumberRange(line, position)
-    else:
-        argumentNumberRange = UNBOUNDED_MANR
+        argumentNumberRange, position = parseArgumentNumberRange(
+            line, position)
     argumentDefinition, position = parseArgumentDefinitionBody(line, position)
-    argumentDefinition.argumentNumberRange = argumentNumberRange
+    argumentDefinition.setArgumentNumberRange(argumentNumberRange)
     return argumentDefinition, position
 
 
 def parseArgumentNumberRange(line, position):
     if (line[position] != '['):
-        generateParseError(line, position, 'argument number range', line[position])
+        generateParseError(
+            line, position, 'argument number range', line[position])
     position += 1
+    lowerBound = 0
+    setLowerBound = False
     if (line[position].isdigit()):
         lowerBound, position = parsePositiveInteger(line, position)
-    else:
-        lowerBound = 0
+        setLowerBound = True
+        if (line[position] == ']'):
+            return MacroArgumentNumberRange(lowerBound, lowerBound), position + 1
     if (line[position] != ':'):
-        generateParseError(line, position, 'number or :', line[position])
+        generateParseError(
+            line, position, 'number, : or ]' if setLowerBound else 'number, :', line[position])
     position += 1
+    upperBound = math.inf
     if (line[position].isdigit()):
         upperBound, position = parsePositiveInteger(line, position)
-    else:
-        upperBound = math.inf
     if (line[position] != ']'):
         generateParseError(line, position, 'number or ]', line[position])
     position += 1
@@ -302,12 +337,14 @@ def parsePositiveInteger(line, position):
 
 def parseArgumentDefinitionBody(line, position):
     if (line[position] != '('):
-        generateParseError(line, position, 'argument definition body', line[position])
+        generateParseError(
+            line, position, 'argument definition body', line[position])
     position += 1
     position = eatWhitespace(line, position)
     replaceString = None
     if (line[position] == '"'):
         replaceString, position = parseDoubleQuotedString(line, position)
+        replaceString = replaceString if replaceString else None
         position = eatWhitespace(line, position)
         position = parseArrow(line, position)
         position = eatWhitespace(line, position)

@@ -1,5 +1,4 @@
 import subprocess
-import re
 from MacroTreeNode import MacroTreeNode
 from MacroArgument import MacroArgumentDefinition, MacroArgumentFormat
 
@@ -36,17 +35,18 @@ class MacroTree:
 
     def executeNoArgScripts(self, currentNode):
         for script, argumentDefinition in currentNode.getScripts():
-            if (argumentDefinition != None):
+            if (argumentDefinition):
                 if (not argumentDefinition.numArgumentsAllowed(0)):
                     continue
-                if (argumentDefinition.getReplaceString() != None):
+                if (argumentDefinition.getReplaceString()):
                     script = script.replace(
                         argumentDefinition.getReplaceString(), '')
             subprocess.Popen(script, shell=True)
 
     def executeScripts(self, currentNode, pressed, position):
         for script, argumentDefinition in currentNode.getScripts():
-            if (argumentDefinition == None or not argumentDefinition.numArgumentsAllowed(len(pressed) - position)):
+            numArgumentsLeft = len(pressed) - position
+            if (not argumentDefinition or not argumentDefinition.numArgumentsAllowed(numArgumentsLeft)):
                 continue
             argumentFormat = argumentDefinition.getArgumentFormat()
             replaceString = argumentDefinition.getReplaceString()
@@ -57,13 +57,21 @@ class MacroTree:
                 argumentGenerator = (''.join(af if isinstance(af, str) else af.toMacroArgument(
                     n, v) for af in argumentFormat) for n, v in pressed[position:])
             argumentString = ' '.join(argumentGenerator)
-            if (replaceString != None):
+            if (replaceString):
                 command = script.replace(replaceString, argumentString)
             elif (not argumentString.isspace()):
                 command = f'{script} {argumentString}'
             else:
                 command = script
             subprocess.Popen(command, shell=True)
+
+    def testNoteWithTrigger(self, playedNote, trigger):
+        note, velocity = playedNote
+        expectedNote, velocityPredicate = trigger
+        if (note != expectedNote): return False
+        v = velocity
+        VELOCITY = velocity
+        return eval(velocityPredicate)
 
     def recurseMacroTreeAndExecuteMacros(self, currentNode, position, pressed):
         keysLeftToProcess = len(pressed) - position
@@ -72,18 +80,19 @@ class MacroTree:
             return
         self.executeScripts(currentNode, pressed, position)
         for trigger, nextNode in currentNode.getBranches().items():
-            match (trigger):
-                case tuple():
+            match (trigger[0]):
+                case (tuple()):
                     chordLength = len(trigger)
                     if (chordLength <= keysLeftToProcess):
-                        playedChord = [
-                            n for n, _ in pressed[position:position + chordLength]]
-                        playedChord.sort()
-                        if (tuple(playedChord) == trigger):
+                        playedChord = pressed[position:position + chordLength]
+                        playedChord.sort(key=lambda nv: nv[0])
+                        for i in range(len(playedChord)):
+                            if (not self.testNoteWithTrigger(playedChord[i], trigger[i])):
+                                break
+                        else:
                             self.recurseMacroTreeAndExecuteMacros(
                                 nextNode, position + chordLength, pressed)
-                case int():
-                    n, _ = pressed[position]
-                    if (n == trigger):
+                case (int()):
+                    if (self.testNoteWithTrigger(pressed[position], trigger)):
                         self.recurseMacroTreeAndExecuteMacros(
                             nextNode, position + 1, pressed)

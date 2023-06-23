@@ -12,15 +12,15 @@ class MacroArgumentFormat(Enum):
 
     def toMacroArgument(self, note, velocity):
         match (self):
-            case MacroArgumentFormat.MIDI:
+            case (MacroArgumentFormat.MIDI):
                 return str(note)
-            case MacroArgumentFormat.ASPN:
+            case (MacroArgumentFormat.ASPN):
                 return midiNoteToASPN(note, False)
-            case MacroArgumentFormat.ASPN_UNICODE:
+            case (MacroArgumentFormat.ASPN_UNICODE):
                 return midiNoteToASPN(note)
-            case MacroArgumentFormat.PIANO:
+            case (MacroArgumentFormat.PIANO):
                 return str(note - 20)
-            case MacroArgumentFormat.VELOCITY:
+            case (MacroArgumentFormat.VELOCITY):
                 return str(velocity)
 
 
@@ -57,9 +57,12 @@ class MacroArgumentDefinition:
     def numArgumentsAllowed(self, numArguments):
         return self.argumentNumberRange.test(numArguments)
 
+    def setArgumentNumberRange(self, argumentNumberRange):
+        self.argumentNumberRange = argumentNumberRange
+
     def __str__(self):
         argumentNumRangeString = f'[{self.argumentNumberRange.getLowerBound()}:{self.argumentNumberRange.getUpperBound()}]'
-        replaceDefinitionString = f'"{self.replaceString}"→' if self.replaceString != None else ''
+        replaceDefinitionString = f'"{self.replaceString}"→' if self.replaceString else ''
         argumentFormatString = self.argumentFormat.name if isinstance(self.argumentFormat, MacroArgumentFormat) else '|'.join(
             (s if isinstance(s, str) else str(s) for s in self.argumentFormat))
         return (f'*{argumentNumRangeString}({replaceDefinitionString}{argumentFormatString})')
