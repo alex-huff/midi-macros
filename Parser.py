@@ -58,7 +58,6 @@ def getPrettySequenceString(sequence):
             case (MacroArgumentDefinition()):
                 prettySequence.append(subSequence.__str__())
             case (tuple()):
-                assert (len(subSequence) > 0)
                 if (isinstance(subSequence[0], tuple)):
                     prettySequence.append(
                         f'({"|".join((getPrettyNoteString(n) for n in subSequence))})')
