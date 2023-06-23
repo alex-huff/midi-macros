@@ -36,14 +36,17 @@ class MacroTree:
 
     def executeNoArgScripts(self, currentNode):
         for script, argumentDefinition in currentNode.getScripts():
-            if (argumentDefinition != None and argumentDefinition.getReplaceString() != None):
-                script = script.replace(
-                    argumentDefinition.getReplaceString(), '')
+            if (argumentDefinition != None):
+                if (not argumentDefinition.numArgumentsAllowed(0)):
+                    continue
+                if (argumentDefinition.getReplaceString() != None):
+                    script = script.replace(
+                        argumentDefinition.getReplaceString(), '')
             subprocess.Popen(script, shell=True)
 
     def executeScripts(self, currentNode, pressed, position):
         for script, argumentDefinition in currentNode.getScripts():
-            if (argumentDefinition == None):
+            if (argumentDefinition == None or not argumentDefinition.numArgumentsAllowed(len(pressed) - position)):
                 continue
             argumentFormat = argumentDefinition.getArgumentFormat()
             replaceString = argumentDefinition.getReplaceString()
@@ -56,8 +59,10 @@ class MacroTree:
             argumentString = ' '.join(argumentGenerator)
             if (replaceString != None):
                 command = script.replace(replaceString, argumentString)
-            else:
+            elif (not argumentString.isspace()):
                 command = f'{script} {argumentString}'
+            else:
+                command = script
             subprocess.Popen(command, shell=True)
 
     def recurseMacroTreeAndExecuteMacros(self, currentNode, position, pressed):
@@ -71,7 +76,8 @@ class MacroTree:
                 case tuple():
                     chordLength = len(trigger)
                     if (chordLength <= keysLeftToProcess):
-                        playedChord = [n for n, _ in pressed[position:position + chordLength]]
+                        playedChord = [
+                            n for n, _ in pressed[position:position + chordLength]]
                         playedChord.sort()
                         if (tuple(playedChord) == trigger):
                             self.recurseMacroTreeAndExecuteMacros(

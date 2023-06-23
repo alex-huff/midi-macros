@@ -1,8 +1,8 @@
 import sys
 import re
+import math
 import ASPN
-from MacroArgument import MacroArgumentFormat
-from MacroArgument import MacroArgumentDefinition
+from MacroArgument import MacroArgumentDefinition, MacroArgumentFormat, MacroArgumentNumberRange, UNBOUNDED_MANR
 from MacroTree import MacroTree
 
 
@@ -24,7 +24,7 @@ lineContinuationRegex = re.compile(r'\\\s*\n')
 basePitchRegex = re.compile(r'[A-Ga-g]')
 modifiers = '#♯b♭𝄪𝄫'
 argumentFormatShorthands = 'mpaAv'
-argumentFormatShorthandMAF = {
+argumentFormatShorthandToMAF = {
     'm': MacroArgumentFormat.MIDI,
     'p': MacroArgumentFormat.PIANO,
     'a': MacroArgumentFormat.ASPN,
@@ -79,6 +79,8 @@ def parseMacroFile(macroFile):
         line = ParseBuffer(line)
         position = 0
         position = eatWhitespace(line, position)
+        if (line[position] == '#'):
+            continue
         try:
             sequence, script = parseMacroFileLine(line, position)
         except ParseError as pe:
@@ -179,23 +181,12 @@ def parseNote(line, position):
             line, position, 'note', line[position])
     startPosition = position
     if (line[position].isdigit()):
-        note, position = parseMIDINote(line, position)
+        note, position = parsePositiveInteger(line, position)
     else:
         note, position = parseASPNNote(line, position)
     if (not inMidiRange(note)):
         generateInvalidMIDIError(line, startPosition, note)
     return note, position
-
-
-def parseMIDINote(line, position):
-    if (not line[position].isdigit()):
-        generateParseError(
-            line, position, 'MIDI note', line[position])
-    startPosition = position
-    position += 1
-    while (line[position].isdigit()):
-        position += 1
-    return int(line[startPosition:position]), position
 
 
 def parseASPNNote(line, position):
@@ -219,13 +210,8 @@ def parseASPNOctave(line, position):
     if (line[position] == '-'):
         modifier = -1
         position += 1
-    startPosition = position
-    while (line[position].isdigit()):
-        position += 1
-    if (position == startPosition):
-        generateParseError(
-            line, position, 'number', line[position])
-    return modifier * int(line[startPosition:position]), position
+    unmodifiedNumber, position = parsePositiveInteger(line, position)
+    return modifier * unmodifiedNumber, position
 
 
 def parseASPNModifiers(line, position):
@@ -270,8 +256,54 @@ def parseOneOfExpectedStrings(line, position, expectedStrings):
 
 
 def parseArgumentDefinition(line, position):
-    parseExpectedString(line, position, '*(')
-    position += 2
+    if (line[position] != '*'):
+        generateParseError(line, position, '*', line[position])
+    position += 1
+    if (line[position] not in '(['):
+        generateParseError(line, position, 'argument number range or argument definition body', line[position])
+    if (line[position] == '['):
+        argumentNumberRange, position = parseArgumentNumberRange(line, position)
+    else:
+        argumentNumberRange = UNBOUNDED_MANR
+    argumentDefinition, position = parseArgumentDefinitionBody(line, position)
+    argumentDefinition.argumentNumberRange = argumentNumberRange
+    return argumentDefinition, position
+
+
+def parseArgumentNumberRange(line, position):
+    if (line[position] != '['):
+        generateParseError(line, position, 'argument number range', line[position])
+    position += 1
+    if (line[position].isdigit()):
+        lowerBound, position = parsePositiveInteger(line, position)
+    else:
+        lowerBound = 0
+    if (line[position] != ':'):
+        generateParseError(line, position, 'number or :', line[position])
+    position += 1
+    if (line[position].isdigit()):
+        upperBound, position = parsePositiveInteger(line, position)
+    else:
+        upperBound = math.inf
+    if (line[position] != ']'):
+        generateParseError(line, position, 'number or ]', line[position])
+    position += 1
+    return MacroArgumentNumberRange(lowerBound, upperBound), position
+
+
+def parsePositiveInteger(line, position):
+    if (not line[position].isdigit()):
+        generateParseError(line, position, 'positive number', line[position])
+    startPosition = position
+    while (line[position].isdigit()):
+        position += 1
+    return int(line[startPosition:position]), position
+
+
+def parseArgumentDefinitionBody(line, position):
+    if (line[position] != '('):
+        generateParseError(line, position, 'argument definition body', line[position])
+    position += 1
     position = eatWhitespace(line, position)
     replaceString = None
     if (line[position] == '"'):
@@ -343,22 +375,22 @@ def parseFStringArgumentFormat(line, position):
         stringBuilder.clear()
 
     def addToStringBuilder(end=None):
-        stringBuilder.append(fString[currentStringStart:end])
+        if (currentStringStart != len(fString)):
+            stringBuilder.append(fString[currentStringStart:end])
 
     for i, char in enumerate(fString):
         if (escaping and char == '%'):
             addToStringBuilder(i)
             currentStringStart = i + 1
         elif (escaping and char in argumentFormatShorthands):
-            macroArgumentFormat = argumentFormatShorthandMAF[char]
+            macroArgumentFormat = argumentFormatShorthandToMAF[char]
             if (i - 1 > currentStringStart):
                 addToStringBuilder(i - 1)
                 addStringBuilderToArgumentFormat()
             argumentFormat.append(macroArgumentFormat)
             currentStringStart = i + 1
         escaping = not escaping if char == '%' else False
-    if (currentStringStart != len(fString)):
-        addToStringBuilder()
+    addToStringBuilder()
     addStringBuilderToArgumentFormat()
     return argumentFormat, position
 
