@@ -244,6 +244,11 @@ def parseVelocityPredicate(line, position):
         generateParseError(
             line, position, 'velocity predicate', line[position])
     position += 1
+    if (line[position] == '"'):
+        velocityPredicate, position = parseDoubleQuotedString(line, position)
+        if (line[position] != ')'):
+            generateParseError(line, position, ')', line[position])
+        return velocityPredicate.strip(), position + 1
     startPosition = position
     numOpenParens = 0
     while (numOpenParens > 0 or line[position] != ')'):
