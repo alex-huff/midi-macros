@@ -47,8 +47,8 @@ def generateInvalidMIDIError(line, position, note):
 
 
 def getPrettyNoteString(note):
-    velocityPredicateString = f'({note[1]})' if note[1] != 'True' else ''
-    return f'{ASPN.midiNoteToASPN(note[0])}{velocityPredicateString}'
+    matchPredicateString = f'({note[1]})' if note[1] != 'True' else ''
+    return f'{ASPN.midiNoteToASPN(note[0])}{matchPredicateString}'
 
 
 def getPrettySequenceString(sequence):
@@ -187,10 +187,10 @@ def parseNote(line, position):
         note, position = parseASPNNote(line, position)
     if (not inMidiRange(note)):
         generateInvalidMIDIError(line, startPosition, note)
-    velocityPredicate = 'True'
+    matchPredicate = 'True'
     if (line[position] == '('):
-        velocityPredicate, position = parseVelocityPredicate(line, position)
-    return (note, velocityPredicate), position
+        matchPredicate, position = parseMatchPredicate(line, position)
+    return (note, matchPredicate), position
 
 
 def parseASPNNote(line, position):
@@ -239,16 +239,11 @@ def parseASPNModifiers(line, position):
     return offset, position
 
 
-def parseVelocityPredicate(line, position):
+def parseMatchPredicate(line, position):
     if (line[position] != '('):
         generateParseError(
-            line, position, 'velocity predicate', line[position])
+            line, position, 'match predicate', line[position])
     position += 1
-    if (line[position] == '"'):
-        velocityPredicate, position = parseDoubleQuotedString(line, position)
-        if (line[position] != ')'):
-            generateParseError(line, position, ')', line[position])
-        return velocityPredicate.strip(), position + 1
     startPosition = position
     numOpenParens = 0
     while (numOpenParens > 0 or line[position] != ')'):
@@ -258,15 +253,14 @@ def parseVelocityPredicate(line, position):
             case (')'):
                 numOpenParens -= 1
             case ('"' | "'"):
-                generateParseError(line, position, None,
-                                   'illegal quote in velocity predicate')
+                position = eatPythonString(line, position) - 1
         if (numOpenParens < 0):
             generateParseError(line, position, None, 'unmatched parenthesis')
         position += 1
     if (startPosition == position):
-        generateParseError(line, position, 'velocity predicate', 'nothing')
-    velocityPredicate = line[startPosition:position].strip()
-    return velocityPredicate, position + 1
+        generateParseError(line, position, None, 'empty match predicate')
+    matchPredicate = line[startPosition:position].strip()
+    return matchPredicate, position + 1
 
 
 def parseExpectedString(line, position, expected):
@@ -347,7 +341,7 @@ def parseArgumentDefinitionBody(line, position):
     position = eatWhitespace(line, position)
     replaceString = None
     if (line[position] == '"'):
-        replaceString, position = parseDoubleQuotedString(line, position)
+        replaceString, position = parseQuotedString(line, position)
         replaceString = replaceString if replaceString else None
         position = eatWhitespace(line, position)
         position = parseArrow(line, position)
@@ -362,8 +356,8 @@ def parseArgumentDefinitionBody(line, position):
     return MacroArgumentDefinition(argumentFormat, replaceString), position + 1
 
 
-def parseDoubleQuotedString(line, position):
-    rawString, line = readDoubleQuotedString(line, position)
+def parseQuotedString(line, position, quoteChar='"'):
+    rawString, line = readQuotedString(line, position, quoteChar)
     try:
         decodedString = decodeCStyleEscapes(rawString)
     except UnicodeDecodeError as ude:
@@ -371,21 +365,48 @@ def parseDoubleQuotedString(line, position):
     return decodedString, line
 
 
-def readDoubleQuotedString(line, position):
-    if (line[position] != '"'):
+def readQuotedString(line, position, quoteChar='"'):
+    if (line[position] != quoteChar):
         generateParseError(
-            line, position, 'double quoted string', line[position])
+            line, position, f'{quoteChar}-quoted string', line[position])
     position += 1
     startPosition = position
     escaping = False
     while (True):
         currentChar = line[position]
-        if (currentChar == '"' and not escaping):
+        if (currentChar == quoteChar and not escaping):
             break
         escaping = not escaping if currentChar == '\\' else False
         position += 1
-    string = line[startPosition:position]
-    return string, position + 1
+    return line[startPosition:position], position + 1
+
+
+def bufferHasSubstringAtPosition(line, position, substring):
+    for i in range(len(substring)):
+        if (position + i >= len(line) or line[position + i] != substring[i]):
+            return False
+    return True
+
+
+def eatPythonString(line, position):
+    if (line[position] not in '"\''):
+        generateParseError(line, position, 'python string', line[position])
+    quoteChar = line[position]
+    isDocstring = bufferHasSubstringAtPosition(line, position, quoteChar * 3)
+    position += 3 if isDocstring else 1
+    escaping = False
+    consecutiveUnescapedQuotes = 0
+    while (True):
+        currentChar = line[position]
+        if (currentChar == quoteChar and not escaping):
+            if (not isDocstring or consecutiveUnescapedQuotes == 2):
+                break
+            consecutiveUnescapedQuotes += 1
+        else:
+            consecutiveUnescapedQuotes = 0
+        escaping = not escaping if currentChar == '\\' else False
+        position += 1
+    return position + 1
 
 
 def decodeCStyleEscapes(string):
@@ -403,7 +424,7 @@ def parseFStringArgumentFormat(line, position):
         generateParseError(
             line, position, 'f-string argument format', line[position])
     position += 1
-    fString, position = parseDoubleQuotedString(line, position)
+    fString, position = parseQuotedString(line, position)
     argumentFormat = []
     stringBuilder = []
     escaping = False

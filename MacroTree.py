@@ -67,11 +67,11 @@ class MacroTree:
 
     def testNoteWithTrigger(self, playedNote, trigger):
         note, velocity = playedNote
-        expectedNote, velocityPredicate = trigger
+        expectedNote, matchPredicate = trigger
         if (note != expectedNote): return False
         v = velocity
         VELOCITY = velocity
-        return eval(velocityPredicate)
+        return eval(matchPredicate)
 
     def recurseMacroTreeAndExecuteMacros(self, currentNode, position, pressed):
         keysLeftToProcess = len(pressed) - position
