@@ -189,7 +189,7 @@ def parseNote(line, position):
         generateInvalidMIDIError(line, startPosition, note)
     matchPredicate = 'True'
     if (line[position] == '('):
-        matchPredicate, position = parseMatchPredicate(line, position)
+        matchPredicate, position = getMatchPredicate(line, position)
     return (note, matchPredicate), position
 
 
@@ -239,7 +239,7 @@ def parseASPNModifiers(line, position):
     return offset, position
 
 
-def parseMatchPredicate(line, position):
+def getMatchPredicate(line, position):
     if (line[position] != '('):
         generateParseError(
             line, position, 'match predicate', line[position])
