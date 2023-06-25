@@ -1,5 +1,7 @@
 import subprocess
+import sys
 from itertools import islice
+from statistics import mean
 from MacroTreeNode import MacroTreeNode
 from MacroArgument import MacroArgumentDefinition, MacroArgumentFormat
 from MacroNote import MacroNote
@@ -82,19 +84,39 @@ class MacroTree:
                 command = script
             subprocess.Popen(command, shell=True)
 
+    def printMatchPredicateEvaluationError(self, matchPredicate):
+        print(
+            f'ERROR: Failed to evaluate match predicate: {matchPredicate}', file=sys.stderr)
+
     def testChordWithMacroChord(self, playedNotes, position, macroChord):
         chordLength = len(macroChord.getChord())
         chordStart, chordEnd = position, position + chordLength - 1
-        CHORD_ELAPSED_TIME = playedNotes[chordEnd].getTime(
-        ) - playedNotes[chordStart].getTime()
         playedChord = list(zip(
             range(chordStart, chordEnd + 1), islice(playedNotes, chordStart, chordEnd + 1)))
         playedChord.sort(key=lambda ip: ip[1].getNote())
         for macroNote, (position, _) in zip(macroChord.getChord(), playedChord):
             if (not self.testNoteWithMacroNote(playedNotes, position, macroNote)):
                 return False
+        CHORD_START_TIME = playedNotes[chordStart].getTime()
+        CHORD_FINISH_TIME = playedNotes[chordEnd].getTime()
+        CHORD_ELAPSED_TIME = CHORD_FINISH_TIME - CHORD_START_TIME
+        def velocityFromIP(ip): return ip[1].getVelocity()
+        CHORD_MIN_VELOCITY = min(velocityFromIP(ip) for ip in playedChord)
+        CHORD_MAX_VELOCITY = max(velocityFromIP(ip) for ip in playedChord)
+        CHORD_AVERAGE_VELOCITY = mean(velocityFromIP(ip) for ip in playedChord)
+        cst = CHORD_START_TIME
+        cft = CHORD_FINISH_TIME
         cet = CHORD_ELAPSED_TIME
-        return eval(macroChord.getMatchPredicate())
+        cminv = CHORD_MIN_VELOCITY
+        cmaxv = CHORD_MAX_VELOCITY
+        cavgv = CHORD_AVERAGE_VELOCITY
+        try:
+            result = eval(macroChord.getMatchPredicate())
+        except BaseException:
+            self.printMatchPredicateEvaluationError(
+                macroChord.getMatchPredicate())
+            return False
+        return result
 
     def testNoteWithMacroNote(self, playedNotes, position, macroNote):
         playedNote = playedNotes[position]
@@ -107,7 +129,13 @@ class MacroTree:
         v = VELOCITY
         t = TIME
         et = ELAPSED_TIME
-        return eval(macroNote.getMatchPredicate())
+        try:
+            result = eval(macroNote.getMatchPredicate())
+        except BaseException:
+            self.printMatchPredicateEvaluationError(
+                macroNote.getMatchPredicate())
+            return False
+        return result
 
     def recurseMacroTreeAndExecuteMacros(self, currentNode, position, playedNotes):
         keysLeftToProcess = len(playedNotes) - position
