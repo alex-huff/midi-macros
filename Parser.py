@@ -5,6 +5,7 @@ import ASPN
 from MacroArgument import MacroArgumentDefinition, MacroArgumentFormat, MacroArgumentNumberRange, UNBOUNDED_MANR
 from MacroTree import MacroTree
 from MacroNote import MacroNote
+from MacroChord import MacroChord
 
 
 class ParseError(Exception):
@@ -48,28 +49,14 @@ def generateInvalidMIDIError(line, position, note):
     raise ParseError(f'\nInvalid MIDI note: {note}\n{line}\n{arrowLine}')
 
 
-def getPrettySequenceString(sequence):
-    prettySequence = []
-    for subMacro in sequence:
-        match subMacro:
-            case (MacroArgumentDefinition()):
-                prettySequence.append(subMacro.__str__())
-            case (tuple()):
-                prettySequence.append(
-                    f'({"|".join((n.__str__() for n in subMacro))})')
-            case (MacroNote()):
-                prettySequence.append(subMacro.__str__())
-    return '+'.join(prettySequence)
-
-
 def preprocessFile(macroFile):
     return lineContinuationRegex.sub('', macroFile.read())
 
 
 def validateMacroSequence(sequence):
-    for subMarco in (subMacro for i, subMacro in enumerate(sequence) if isinstance(subMacro, MacroArgumentDefinition) and i < len(sequence) - 1):
+    for subMacro in (subMacro for i, subMacro in enumerate(sequence) if isinstance(subMacro, MacroArgumentDefinition) and i < len(sequence) - 1):
         print(
-            f'ERROR: Argument definition: {subMarco} found before end of macro', file=sys.stderr)
+            f'ERROR: Argument definition: {subMacro} found before end of macro', file=sys.stderr)
         sys.exit(-1)
 
 
@@ -91,7 +78,7 @@ def parseMacroFile(macroFile):
             sys.exit(-1)
         validateMacroSequence(sequence)
         print(
-            f'Adding macro {getPrettySequenceString(sequence)} → {script}')
+            f'Adding macro {"+".join(str(subMacro) for subMacro in sequence)} → {script}')
         macroTree.addMacroToTree(sequence, script)
     return macroTree
 
@@ -105,16 +92,18 @@ def eatWhitespace(line, position):
 def parseMacroFileLine(line, position):
     sequence, position = parseMacroDefinition(line, position)
     position = eatWhitespace(line, position)
-    position = parseArrow(line, position)
+    position = parseArrow(line, position, otherExpected='+')
     position = eatWhitespace(line, position)
     script = parseScripts(line, position)
     return sequence, script
 
 
-def parseArrow(line, position):
+def parseArrow(line, position, otherExpected=None):
     if (line[position] not in '→-'):
+        otherMessage = f' or {otherExpected}' if otherExpected else ''
+        message = f'arrow operator (->, →){otherMessage}'
         generateParseError(
-            line, position, 'arrow operator (->, →)', line[position])
+            line, position, message, line[position])
     if (line[position] == '→'):
         return position + 1
     position += 1
@@ -163,8 +152,12 @@ def parseChord(line, position):
             generateParseError(
                 line, position, '| or )', line[position])
         if (line[position] == ')'):
+            position += 1
             chord.sort(key=lambda macroNote: macroNote.getNote())
-            return tuple(chord), position + 1
+            matchPredicate = 'True'
+            if (line[position] == '{'):
+                matchPredicate, position = getMatchPredicate(line, position)
+            return MacroChord(tuple(chord), matchPredicate), position
         position += 1
 
 
@@ -184,7 +177,7 @@ def parseNote(line, position):
     if (not inMidiRange(note)):
         generateInvalidMIDIError(line, startPosition, note)
     matchPredicate = 'True'
-    if (line[position] == '('):
+    if (line[position] == '{'):
         matchPredicate, position = getMatchPredicate(line, position)
     return MacroNote(note, matchPredicate), position
 
@@ -236,22 +229,22 @@ def parseASPNModifiers(line, position):
 
 
 def getMatchPredicate(line, position):
-    if (line[position] != '('):
+    if (line[position] != '{'):
         generateParseError(
             line, position, 'match predicate', line[position])
     position += 1
     startPosition = position
-    numOpenParens = 0
-    while (numOpenParens > 0 or line[position] != ')'):
+    numUnmatchedOpenLeftCurlyBraces = 0
+    while (numUnmatchedOpenLeftCurlyBraces > 0 or line[position] != '}'):
         match (line[position]):
-            case ('('):
-                numOpenParens += 1
-            case (')'):
-                numOpenParens -= 1
+            case ('{'):
+                numUnmatchedOpenLeftCurlyBraces += 1
+            case ('}'):
+                numUnmatchedOpenLeftCurlyBraces -= 1
             case ('"' | "'"):
                 position = eatPythonString(line, position) - 1
-        if (numOpenParens < 0):
-            generateParseError(line, position, None, 'unmatched parenthesis')
+        if (numUnmatchedOpenLeftCurlyBraces < 0):
+            generateParseError(line, position, None, 'unmatched curly brace')
         position += 1
     if (startPosition == position):
         generateParseError(line, position, None, 'empty match predicate')

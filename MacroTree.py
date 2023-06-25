@@ -3,6 +3,21 @@ from itertools import islice
 from MacroTreeNode import MacroTreeNode
 from MacroArgument import MacroArgumentDefinition, MacroArgumentFormat
 from MacroNote import MacroNote
+from MacroChord import MacroChord
+
+
+def nanoSecondsToSeconds(elapsedTime):
+    return elapsedTime / 10**9
+
+
+def nanoSecondsToMilliseconds(elapsedTime):
+    return elapsedTime / 10**6
+
+
+SECONDS = nanoSecondsToSeconds
+sec = SECONDS
+MILLISECONDS = nanoSecondsToMilliseconds
+ms = MILLISECONDS
 
 
 class MacroTree:
@@ -25,7 +40,7 @@ class MacroTree:
         else:
             currentNode.addScript(script)
             return
-        for trigger in macro[i:]:
+        for trigger in islice(macro, i, None):
             if (isinstance(trigger, MacroArgumentDefinition)):
                 argumentDefinition = trigger
                 break
@@ -67,22 +82,34 @@ class MacroTree:
                 command = script
             subprocess.Popen(command, shell=True)
 
-    def testNoteWithMacroNote(self, playedNote, macroNote, ELAPSED_TIME=None, CHORD_ELAPSED_TIME=None):
+    def testChordWithMacroChord(self, playedNotes, position, macroChord):
+        chordLength = len(macroChord.getChord())
+        chordStart, chordEnd = position, position + chordLength - 1
+        CHORD_ELAPSED_TIME = playedNotes[chordEnd].getTime(
+        ) - playedNotes[chordStart].getTime()
+        playedChord = list(zip(
+            range(chordStart, chordEnd + 1), islice(playedNotes, chordStart, chordEnd + 1)))
+        playedChord.sort(key=lambda ip: ip[1].getNote())
+        for macroNote, (position, _) in zip(macroChord.getChord(), playedChord):
+            if (not self.testNoteWithMacroNote(playedNotes, position, macroNote)):
+                return False
+        cet = CHORD_ELAPSED_TIME
+        return eval(macroChord.getMatchPredicate())
+
+    def testNoteWithMacroNote(self, playedNotes, position, macroNote):
+        playedNote = playedNotes[position]
         if (playedNote.getNote() != macroNote.getNote()):
             return False
         VELOCITY = playedNote.getVelocity()
         TIME = playedNote.getTime()
+        ELAPSED_TIME = None if position == 0 else playedNote.getTime() - \
+            playedNotes[position - 1].getTime()
         v = VELOCITY
         t = TIME
         et = ELAPSED_TIME
-        cet = CHORD_ELAPSED_TIME
-        print(v, t, et, cet)
         return eval(macroNote.getMatchPredicate())
 
     def recurseMacroTreeAndExecuteMacros(self, currentNode, position, playedNotes):
-        def getElapsedTimeFromLastPlayedNote(position):
-            return None if position == 0 else playedNotes[position].getTime() - playedNotes[position - 1].getTime()
-
         keysLeftToProcess = len(playedNotes) - position
         if (keysLeftToProcess == 0):
             self.executeNoArgScripts(currentNode)
@@ -90,23 +117,14 @@ class MacroTree:
         self.executeScripts(currentNode, playedNotes, position)
         for trigger, nextNode in currentNode.getBranches().items():
             match (trigger):
-                case (tuple()):
-                    chordLength = len(trigger)
-                    if (chordLength > keysLeftToProcess):
+                case (MacroChord()):
+                    chordLength = len(trigger.getChord())
+                    if (len(trigger.getChord()) > keysLeftToProcess):
                         continue
-                    chordStart, chordEnd = position, position + chordLength - 1
-                    chordElapsedTime = playedNotes[chordEnd].getTime(
-                    ) - playedNotes[chordStart].getTime()
-                    playedChord = list(zip(
-                        range(chordStart, chordEnd + 1), islice(playedNotes, chordStart, chordEnd + 1)))
-                    playedChord.sort(key=lambda ip: ip[1].getNote())
-                    for macroNote, (pos, playedNote) in zip(trigger, playedChord):
-                        if (not self.testNoteWithMacroNote(playedNote, macroNote, ELAPSED_TIME=getElapsedTimeFromLastPlayedNote(pos), CHORD_ELAPSED_TIME=chordElapsedTime)):
-                            break
-                    else:
+                    if (self.testChordWithMacroChord(playedNotes, position, trigger)):
                         self.recurseMacroTreeAndExecuteMacros(
                             nextNode, position + chordLength, playedNotes)
                 case (MacroNote()):
-                    if (self.testNoteWithMacroNote(playedNotes[position], trigger, ELAPSED_TIME=getElapsedTimeFromLastPlayedNote(position))):
+                    if (self.testNoteWithMacroNote(playedNotes, position, trigger)):
                         self.recurseMacroTreeAndExecuteMacros(
                             nextNode, position + 1, playedNotes)
