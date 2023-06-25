@@ -9,19 +9,22 @@ class MacroArgumentFormat(Enum):
     ASPN_UNICODE = 2
     PIANO = 3
     VELOCITY = 4
+    TIME = 5
 
-    def toMacroArgument(self, note, velocity):
+    def toMacroArgument(self, playedNote):
         match (self):
             case (MacroArgumentFormat.MIDI):
-                return str(note)
+                return str(playedNote.getNote())
             case (MacroArgumentFormat.ASPN):
-                return midiNoteToASPN(note, False)
+                return midiNoteToASPN(playedNote.getNote(), False)
             case (MacroArgumentFormat.ASPN_UNICODE):
-                return midiNoteToASPN(note)
+                return midiNoteToASPN(playedNote.getNote())
             case (MacroArgumentFormat.PIANO):
-                return str(note - 20)
+                return str(playedNote.getNote() - 20)
             case (MacroArgumentFormat.VELOCITY):
-                return str(velocity)
+                return str(playedNote.getVelocity())
+            case (MacroArgumentFormat.TIME):
+                return str(playedNote.getTime())
 
 
 class MacroArgumentNumberRange:

@@ -4,6 +4,7 @@ import math
 import ASPN
 from MacroArgument import MacroArgumentDefinition, MacroArgumentFormat, MacroArgumentNumberRange, UNBOUNDED_MANR
 from MacroTree import MacroTree
+from MacroNote import MacroNote
 
 
 class ParseError(Exception):
@@ -23,13 +24,14 @@ class ParseBuffer(str):
 lineContinuationRegex = re.compile(r'\\\s*\n')
 basePitchRegex = re.compile(r'[A-Ga-g]')
 modifiers = '#♯b♭𝄪𝄫'
-argumentFormatShorthands = 'mpaAv'
+argumentFormatShorthands = 'mpaAvt'
 argumentFormatShorthandToMAF = {
     'm': MacroArgumentFormat.MIDI,
     'p': MacroArgumentFormat.PIANO,
     'a': MacroArgumentFormat.ASPN,
     'A': MacroArgumentFormat.ASPN_UNICODE,
     'v': MacroArgumentFormat.VELOCITY,
+    't': MacroArgumentFormat.TIME
 }
 
 
@@ -46,23 +48,17 @@ def generateInvalidMIDIError(line, position, note):
     raise ParseError(f'\nInvalid MIDI note: {note}\n{line}\n{arrowLine}')
 
 
-def getPrettyNoteString(note):
-    matchPredicateString = f'({note[1]})' if note[1] != 'True' else ''
-    return f'{ASPN.midiNoteToASPN(note[0])}{matchPredicateString}'
-
-
 def getPrettySequenceString(sequence):
     prettySequence = []
-    for subSequence in sequence:
-        match (subSequence):
+    for subMacro in sequence:
+        match subMacro:
             case (MacroArgumentDefinition()):
-                prettySequence.append(subSequence.__str__())
+                prettySequence.append(subMacro.__str__())
             case (tuple()):
-                if (isinstance(subSequence[0], tuple)):
-                    prettySequence.append(
-                        f'({"|".join((getPrettyNoteString(n) for n in subSequence))})')
-                else:
-                    prettySequence.append(getPrettyNoteString(subSequence))
+                prettySequence.append(
+                    f'({"|".join((n.__str__() for n in subMacro))})')
+            case (MacroNote()):
+                prettySequence.append(subMacro.__str__())
     return '+'.join(prettySequence)
 
 
@@ -71,9 +67,9 @@ def preprocessFile(macroFile):
 
 
 def validateMacroSequence(sequence):
-    for subSequence in (subSequence for i, subSequence in enumerate(sequence) if isinstance(subSequence, MacroArgumentDefinition) and i < len(sequence) - 1):
+    for subMarco in (subMacro for i, subMacro in enumerate(sequence) if isinstance(subMacro, MacroArgumentDefinition) and i < len(sequence) - 1):
         print(
-            f'ERROR: Argument definition: {subSequence} found before end of macro', file=sys.stderr)
+            f'ERROR: Argument definition: {subMarco} found before end of macro', file=sys.stderr)
         sys.exit(-1)
 
 
@@ -96,7 +92,7 @@ def parseMacroFile(macroFile):
         validateMacroSequence(sequence)
         print(
             f'Adding macro {getPrettySequenceString(sequence)} → {script}')
-        macroTree.addSequenceToTree(sequence, script)
+        macroTree.addMacroToTree(sequence, script)
     return macroTree
 
 
@@ -132,8 +128,8 @@ def parseMacroDefinition(line, position):
     sequence = []
     while (True):
         position = eatWhitespace(line, position)
-        subSequence, position = parseSubMacro(line, position)
-        sequence.append(subSequence)
+        subMacro, position = parseSubMacro(line, position)
+        sequence.append(subMacro)
         position = eatWhitespace(line, position)
         if (line[position] != '+'):
             return sequence, position
@@ -167,7 +163,7 @@ def parseChord(line, position):
             generateParseError(
                 line, position, '| or )', line[position])
         if (line[position] == ')'):
-            chord.sort(key=lambda n: n[0])
+            chord.sort(key=lambda macroNote: macroNote.getNote())
             return tuple(chord), position + 1
         position += 1
 
@@ -190,7 +186,7 @@ def parseNote(line, position):
     matchPredicate = 'True'
     if (line[position] == '('):
         matchPredicate, position = getMatchPredicate(line, position)
-    return (note, matchPredicate), position
+    return MacroNote(note, matchPredicate), position
 
 
 def parseASPNNote(line, position):

@@ -1,14 +1,16 @@
 import os
 import sys
+import time
+import mido
 import ASPN
 import Parser
+from PlayedNote import PlayedNote
 from appdirs import user_config_dir
-import mido
 
 
 def executeMacros(macroTree, pressed):
     print(
-        f'Evaluating pressed keys: {[ASPN.midiNoteToASPN(n) for n, _ in pressed]}')
+        f'Evaluating pressed keys: {[ASPN.midiNoteToASPN(playedNote.getNote()) for playedNote in pressed]}')
     macroTree.executeMacros(pressed)
 
 
@@ -49,7 +51,7 @@ for message in inPort:
             if (lastChangeWasAdd and len(queuedReleases) > 0):
                 executeMacros(macroTree, pressed)
                 lastChangeWasAdd = False
-            pressed = [nv for nv in pressed if nv[0] not in queuedReleases]
+            pressed = [playedNote for playedNote in pressed if playedNote.getNote() not in queuedReleases]
             queuedReleases.clear()
         continue
     wasPress = message.type == 'note_on'
@@ -58,7 +60,7 @@ for message in inPort:
     if (wasPress):
         if (note in queuedReleases):
             queuedReleases.remove(note)
-        pressed.append((note, velocity))
+        pressed.append(PlayedNote(note, velocity, time.time_ns()))
     else:
         if (pedalDown):
             queuedReleases.add(note)
@@ -66,5 +68,5 @@ for message in inPort:
         else:
             if (lastChangeWasAdd):
                 executeMacros(macroTree, pressed)
-            pressed = [nv for nv in pressed if nv[0] != note]
+            pressed = [playedNote for playedNote in pressed if playedNote.getNote() != note]
     lastChangeWasAdd = wasPress
