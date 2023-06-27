@@ -40,28 +40,28 @@ class MacroTree:
 
     def addMacroToTree(self, macro, script):
         currentNode = self.root
-        movesToScriptExecution = list(accumulate(
+        notesToScriptExecution = list(accumulate(
             self.numNotesInTrigger(t) for t in reversed(macro.getTriggers())))
-        movesToScriptExecution.reverse()
+        notesToScriptExecution.reverse()
         minArguments = macro.getArgumentDefinition(
         ).getArgumentNumberRange().getLowerBound()
         maxArguments = macro.getArgumentDefinition(
         ).getArgumentNumberRange().getUpperBound()
 
-        def updateMinAndMaxForNode(node, moves):
-            node.updateMinNotesTillScriptExecution(moves + minArguments)
-            node.updateMaxNotesTillScriptExecution(moves + maxArguments)
+        def updateMinAndMaxForNode(node, notes):
+            node.updateMinNotesTillScriptExecution(notes + minArguments)
+            node.updateMaxNotesTillScriptExecution(notes + maxArguments)
         i = 0
-        for i, (trigger, moves) in enumerate(zip(macro.getTriggers(), movesToScriptExecution)):
+        for i, (trigger, notes) in enumerate(zip(macro.getTriggers(), notesToScriptExecution)):
             if (not currentNode.hasBranch(trigger)):
                 break
-            updateMinAndMaxForNode(currentNode, moves)
+            updateMinAndMaxForNode(currentNode, notes)
             currentNode = currentNode.getBranch(trigger)
         else:
             currentNode.addScript(script, macro.getArgumentDefinition())
             return
-        for trigger, moves in islice(zip(macro.getTriggers(), movesToScriptExecution), i, None):
-            updateMinAndMaxForNode(currentNode, moves)
+        for trigger, notes in islice(zip(macro.getTriggers(), notesToScriptExecution), i, None):
+            updateMinAndMaxForNode(currentNode, notes)
             currentNode = currentNode.setBranch(trigger, MacroTreeNode())
         currentNode.addScript(script, macro.getArgumentDefinition())
 
