@@ -2,10 +2,11 @@ import sys
 import re
 import math
 import ASPN
-from MacroArgument import MacroArgumentDefinition, MacroArgumentFormat, MacroArgumentNumberRange, UNBOUNDED_MANR
+from MacroArgument import MacroArgumentDefinition, MacroArgumentFormat, MacroArgumentNumberRange, UNBOUNDED_MANR, ZERO_ARGUMENT_DEFINITION
 from MacroTree import MacroTree
 from MacroNote import MacroNote
 from MacroChord import MacroChord
+from Macro import Macro
 
 
 class ParseError(Exception):
@@ -53,11 +54,15 @@ def preprocessFile(macroFile):
     return lineContinuationRegex.sub('', macroFile.read())
 
 
-def validateMacroSequence(sequence):
-    for subMacro in (subMacro for i, subMacro in enumerate(sequence) if isinstance(subMacro, MacroArgumentDefinition) and i < len(sequence) - 1):
+def validateMacroSequenceAndGetMacro(sequence):
+    endingWithMacroDefinition = isinstance(sequence[-1], MacroArgumentDefinition)
+    argumentDefinition = sequence[-1] if endingWithMacroDefinition else ZERO_ARGUMENT_DEFINITION
+    triggers = sequence[:-1 if endingWithMacroDefinition else None]
+    for t in (t for t in triggers if isinstance(t, MacroArgumentDefinition)):
         print(
-            f'ERROR: Argument definition: {subMacro} found before end of macro', file=sys.stderr)
+            f'ERROR: Argument definition: {t} found before end of macro', file=sys.stderr)
         sys.exit(-1)
+    return Macro(triggers, argumentDefinition)
 
 
 def parseMacroFile(macroFile):
@@ -76,10 +81,10 @@ def parseMacroFile(macroFile):
         except ParseError as pe:
             print(f'Parsing ERROR: {pe.message}', file=sys.stderr)
             sys.exit(-1)
-        validateMacroSequence(sequence)
+        macro = validateMacroSequenceAndGetMacro(sequence)
         print(
-            f'Adding macro {"+".join(str(subMacro) for subMacro in sequence)} → {script}')
-        macroTree.addMacroToTree(sequence, script)
+            f'Adding macro {macro} → {script}')
+        macroTree.addMacroToTree(macro, script)
     return macroTree
 
 

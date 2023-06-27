@@ -10,6 +10,7 @@ class MacroArgumentFormat(Enum):
     PIANO = 3
     VELOCITY = 4
     TIME = 5
+    NONE = 6
 
     def toMacroArgument(self, playedNote):
         match (self):
@@ -25,6 +26,8 @@ class MacroArgumentFormat(Enum):
                 return str(playedNote.getVelocity())
             case (MacroArgumentFormat.TIME):
                 return str(playedNote.getTime())
+            case (MacroArgumentFormat.NONE):
+                return ''
 
 
 class MacroArgumentNumberRange:
@@ -43,6 +46,7 @@ class MacroArgumentNumberRange:
 
 
 UNBOUNDED_MANR = MacroArgumentNumberRange(0, math.inf)
+ZERO_MANR = MacroArgumentNumberRange(0, 0)
 
 
 class MacroArgumentDefinition:
@@ -57,6 +61,9 @@ class MacroArgumentDefinition:
     def getReplaceString(self):
         return self.replaceString
 
+    def getArgumentNumberRange(self):
+        return self.argumentNumberRange
+
     def numArgumentsAllowed(self, numArguments):
         return self.argumentNumberRange.test(numArguments)
 
@@ -69,3 +76,7 @@ class MacroArgumentDefinition:
         argumentFormatString = self.argumentFormat.name if isinstance(self.argumentFormat, MacroArgumentFormat) else '|'.join(
             (s if isinstance(s, str) else str(s) for s in self.argumentFormat))
         return (f'*{argumentNumRangeString}({replaceDefinitionString}{argumentFormatString})')
+
+
+ZERO_ARGUMENT_DEFINITION = MacroArgumentDefinition(
+    MacroArgumentFormat.NONE, argumentNumberRange=ZERO_MANR)

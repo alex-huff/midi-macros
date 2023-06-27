@@ -1,9 +1,9 @@
 import subprocess
 import sys
-from itertools import islice
+from itertools import islice, accumulate
 from statistics import mean
 from MacroTreeNode import MacroTreeNode
-from MacroArgument import MacroArgumentDefinition, MacroArgumentFormat
+from MacroArgument import MacroArgumentFormat
 from MacroNote import MacroNote
 from MacroChord import MacroChord
 
@@ -29,25 +29,41 @@ class MacroTree:
     def getRoot(self):
         return self.root
 
+    def numNotesInTrigger(self, trigger):
+        match (trigger):
+            case (MacroNote()):
+                return 1
+            case (MacroChord()):
+                return len(trigger.getChord())
+            case (_):
+                return 0
+
     def addMacroToTree(self, macro, script):
-        if (len(macro) == 0):
-            return
         currentNode = self.root
-        argumentDefinition = None
+        movesToScriptExecution = list(accumulate(
+            self.numNotesInTrigger(t) for t in reversed(macro.getTriggers())))
+        movesToScriptExecution.reverse()
+        minArguments = macro.getArgumentDefinition(
+        ).getArgumentNumberRange().getLowerBound()
+        maxArguments = macro.getArgumentDefinition(
+        ).getArgumentNumberRange().getUpperBound()
+
+        def updateMinAndMaxForNode(node, moves):
+            node.updateMinNotesTillScriptExecution(moves + minArguments)
+            node.updateMaxNotesTillScriptExecution(moves + maxArguments)
         i = 0
-        for i, trigger in enumerate(macro):
+        for i, (trigger, moves) in enumerate(zip(macro.getTriggers(), movesToScriptExecution)):
             if (not currentNode.hasBranch(trigger)):
                 break
+            updateMinAndMaxForNode(currentNode, moves)
             currentNode = currentNode.getBranch(trigger)
         else:
-            currentNode.addScript(script)
+            currentNode.addScript(script, macro.getArgumentDefinition())
             return
-        for trigger in islice(macro, i, None):
-            if (isinstance(trigger, MacroArgumentDefinition)):
-                argumentDefinition = trigger
-                break
+        for trigger, moves in islice(zip(macro.getTriggers(), movesToScriptExecution), i, None):
+            updateMinAndMaxForNode(currentNode, moves)
             currentNode = currentNode.setBranch(trigger, MacroTreeNode())
-        currentNode.addScript(script, argumentDefinition)
+        currentNode.addScript(script, macro.getArgumentDefinition())
 
     def executeMacros(self, playedNotes):
         self.recurseMacroTreeAndExecuteMacros(self.root, 0, playedNotes)
@@ -139,6 +155,8 @@ class MacroTree:
 
     def recurseMacroTreeAndExecuteMacros(self, currentNode, position, playedNotes):
         keysLeftToProcess = len(playedNotes) - position
+        if (not currentNode.shouldProcessNumNotes(keysLeftToProcess)):
+            return
         if (keysLeftToProcess == 0):
             self.executeNoArgScripts(currentNode)
             return
@@ -147,12 +165,14 @@ class MacroTree:
             match (trigger):
                 case (MacroChord()):
                     chordLength = len(trigger.getChord())
-                    if (len(trigger.getChord()) > keysLeftToProcess):
+                    if (len(trigger.getChord()) > keysLeftToProcess or not nextNode.shouldProcessNumNotes(keysLeftToProcess - chordLength)):
                         continue
                     if (self.testChordWithMacroChord(playedNotes, position, trigger)):
                         self.recurseMacroTreeAndExecuteMacros(
                             nextNode, position + chordLength, playedNotes)
                 case (MacroNote()):
+                    if (not nextNode.shouldProcessNumNotes(keysLeftToProcess - 1)):
+                        continue
                     if (self.testNoteWithMacroNote(playedNotes, position, trigger)):
                         self.recurseMacroTreeAndExecuteMacros(
                             nextNode, position + 1, playedNotes)
