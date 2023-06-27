@@ -66,6 +66,8 @@ class MacroTree:
         currentNode.addScript(script, macro.getArgumentDefinition())
 
     def executeMacros(self, playedNotes):
+        if (not self.root.shouldProcessNumNotes(len(playedNotes))):
+            return
         self.recurseMacroTreeAndExecuteMacros(self.root, 0, playedNotes)
 
     def executeNoArgScripts(self, currentNode):
@@ -155,8 +157,6 @@ class MacroTree:
 
     def recurseMacroTreeAndExecuteMacros(self, currentNode, position, playedNotes):
         keysLeftToProcess = len(playedNotes) - position
-        if (not currentNode.shouldProcessNumNotes(keysLeftToProcess)):
-            return
         if (keysLeftToProcess == 0):
             self.executeNoArgScripts(currentNode)
             return
