@@ -77,11 +77,10 @@ def parseMacroFile(macroFile):
         if (line[position] == '#'):
             continue
         try:
-            sequence, script = parseMacroFileLine(line, position)
+            macro, script = parseMacroFileLine(line, position)
         except ParseError as pe:
             print(f'Parsing ERROR: {pe.message}', file=sys.stderr)
             sys.exit(-1)
-        macro = validateMacroSequenceAndGetMacro(sequence)
         print(
             f'Adding macro {macro} → {script}')
         macroTree.addMacroToTree(macro, script)
@@ -95,12 +94,12 @@ def eatWhitespace(line, position):
 
 
 def parseMacroFileLine(line, position):
-    sequence, position = parseMacroDefinition(line, position)
+    macro, position = parseMacroDefinition(line, position)
     position = eatWhitespace(line, position)
     position = parseArrow(line, position, otherExpected='+')
     position = eatWhitespace(line, position)
     script = parseScripts(line, position)
-    return sequence, script
+    return macro, script
 
 
 def parseArrow(line, position, otherExpected=None):
@@ -126,7 +125,7 @@ def parseMacroDefinition(line, position):
         sequence.append(subMacro)
         position = eatWhitespace(line, position)
         if (line[position] != '+'):
-            return sequence, position
+            return validateMacroSequenceAndGetMacro(sequence), position
         position += 1
 
 
