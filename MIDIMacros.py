@@ -51,7 +51,8 @@ for message in inPort:
             if (lastChangeWasAdd and len(queuedReleases) > 0):
                 executeMacros(macroTree, pressed)
                 lastChangeWasAdd = False
-            pressed = [playedNote for playedNote in pressed if playedNote.getNote() not in queuedReleases]
+            pressed = [playedNote for playedNote in pressed if playedNote.getNote(
+            ) not in queuedReleases]
             queuedReleases.clear()
         continue
     wasPress = message.type == 'note_on'
@@ -68,5 +69,6 @@ for message in inPort:
         else:
             if (lastChangeWasAdd):
                 executeMacros(macroTree, pressed)
-            pressed = [playedNote for playedNote in pressed if playedNote.getNote() != note]
+            pressed = [
+                playedNote for playedNote in pressed if playedNote.getNote() != note]
     lastChangeWasAdd = wasPress

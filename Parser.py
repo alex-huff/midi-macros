@@ -55,7 +55,8 @@ def preprocessFile(macroFile):
 
 
 def validateMacroSequenceAndGetMacro(sequence):
-    endingWithMacroDefinition = isinstance(sequence[-1], MacroArgumentDefinition)
+    endingWithMacroDefinition = isinstance(
+        sequence[-1], MacroArgumentDefinition)
     argumentDefinition = sequence[-1] if endingWithMacroDefinition else ZERO_ARGUMENT_DEFINITION
     triggers = sequence[:-1 if endingWithMacroDefinition else None]
     for t in (t for t in triggers if isinstance(t, MacroArgumentDefinition)):
