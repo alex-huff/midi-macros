@@ -14,7 +14,7 @@ def executeMacros(macroTree, pressed):
     macroTree.executeMacros(pressed)
 
 
-configDirPath = user_config_dir('MIDIMacros')
+configDirPath = user_config_dir('midi-macros')
 
 if (not os.path.exists(configDirPath)):
     print(f'Config directory {configDirPath} does not exist, creating it now.')
