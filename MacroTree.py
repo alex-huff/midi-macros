@@ -89,10 +89,10 @@ class MacroTree:
             replaceString = argumentDefinition.getReplaceString()
             if (isinstance(argumentFormat, MacroArgumentFormat)):
                 argumentGenerator = (argumentFormat.toMacroArgument(
-                    playedNote) for playedNote in playedNotes[position:])
+                    playedNote) for playedNote in islice(playedNotes, position, None))
             else:
                 argumentGenerator = (''.join(af if isinstance(af, str) else af.toMacroArgument(
-                    playedNote) for af in argumentFormat) for playedNote in playedNotes[position:])
+                    playedNote) for af in argumentFormat) for playedNote in islice(playedNotes, position, None))
             argumentString = ' '.join(argumentGenerator)
             if (replaceString):
                 command = script.replace(replaceString, argumentString)
