@@ -17,7 +17,7 @@ elif (not os.path.isdir(configDirPath)):
         f'ERROR: config directory {configDirPath} already exists as a file', file=sys.stderr)
     sys.exit(-1)
 
-configFilePath = os.path.join(configDirPath, 'config.toml')
+configFilePath = os.path.join(configDirPath, 'midi-macros.toml')
 
 if (not os.path.exists(macroDirPath)):
     print(f'Macro directory does not exist, creating it now')
