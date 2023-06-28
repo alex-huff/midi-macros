@@ -11,6 +11,7 @@ class ConfigError(Exception):
 
 def getDefaultConfig():
     return {
+        'enabled': True,
         'midi-input': None,
         'macro-file': None
     }

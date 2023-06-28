@@ -46,6 +46,8 @@ for key, value in data.items():
     except ConfigError as ce:
         print(f'ERROR: {ce.getMessage()}', file=sys.stderr)
         sys.exit(-1)
+    if (not config['enabled']):
+        continue
     listeners[key] = MidiListener(config, key)
 
 for listener in listeners.values():
