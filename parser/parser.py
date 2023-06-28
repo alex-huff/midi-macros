@@ -2,7 +2,7 @@ import sys
 import re
 import math
 from aspn import aspn
-from macro.macro_argument import MacroArgumentDefinition, MacroArgumentFormat, MacroArgumentNumberRange, UNBOUNDED_MANR, ZERO_ARGUMENT_DEFINITION
+from macro.macro_argument import *
 from tree.macro_tree import MacroTree
 from macro.macro_note import MacroNote
 from macro.macro_chord import MacroChord
@@ -31,12 +31,12 @@ basePitchRegex = re.compile(r'[A-Ga-g]')
 modifiers = '#♯b♭𝄪𝄫'
 argumentFormatShorthands = 'mpaAvt'
 argumentFormatShorthandToMAF = {
-    'm': MacroArgumentFormat.MIDI,
-    'p': MacroArgumentFormat.PIANO,
-    'a': MacroArgumentFormat.ASPN,
-    'A': MacroArgumentFormat.ASPN_UNICODE,
-    'v': MacroArgumentFormat.VELOCITY,
-    't': MacroArgumentFormat.TIME
+    'm': FORMAT_MIDI,
+    'p': FORMAT_PIANO,
+    'a': FORMAT_ASPN,
+    'A': FORMAT_ASPN_UNICODE,
+    'v': FORMAT_VELOCITY,
+    't': FORMAT_TIME
 }
 
 
@@ -412,8 +412,8 @@ def decodeCStyleEscapes(string):
 
 def parseArgumentFormat(line, position):
     formatString, position = parseOneOfExpectedStrings(
-        line, position, [f.name for f in MacroArgumentFormat])
-    return MacroArgumentFormat.__members__[formatString], position
+        line, position, [n for n in FORMATS.keys()])
+    return FORMATS[formatString], position
 
 
 def parseFStringArgumentFormat(line, position):

@@ -1,33 +1,38 @@
-from enum import Enum
 import math
 from aspn.aspn import midiNoteToASPN
 
 
-class MacroArgumentFormat(Enum):
-    MIDI = 0
-    ASPN = 1
-    ASPN_UNICODE = 2
-    PIANO = 3
-    VELOCITY = 4
-    TIME = 5
-    NONE = 6
+class MacroArgumentFormat():
+    def __init__(self, convertor, name):
+        self.convertor = convertor
+        self.name = name
 
     def toMacroArgument(self, playedNote):
-        match (self):
-            case (MacroArgumentFormat.MIDI):
-                return str(playedNote.getNote())
-            case (MacroArgumentFormat.ASPN):
-                return midiNoteToASPN(playedNote.getNote(), False)
-            case (MacroArgumentFormat.ASPN_UNICODE):
-                return midiNoteToASPN(playedNote.getNote())
-            case (MacroArgumentFormat.PIANO):
-                return str(playedNote.getNote() - 20)
-            case (MacroArgumentFormat.VELOCITY):
-                return str(playedNote.getVelocity())
-            case (MacroArgumentFormat.TIME):
-                return str(playedNote.getTime())
-            case (MacroArgumentFormat.NONE):
-                return ''
+        return self.convertor(playedNote)
+
+    def getName(self):
+        return self.name
+
+    def __str__(self):
+        return self.name
+
+
+FORMAT_MIDI         = MacroArgumentFormat(lambda pn: str(pn.getNote()), 'MIDI')
+FORMAT_ASPN         = MacroArgumentFormat(lambda pn: midiNoteToASPN(pn.getNote(), False), 'ASPN')
+FORMAT_ASPN_UNICODE = MacroArgumentFormat(lambda pn: midiNoteToASPN(pn.getNote()), 'ASPN_UNICODE')
+FORMAT_PIANO        = MacroArgumentFormat(lambda pn: str(pn.getNote() - 20), 'PIANO')
+FORMAT_VELOCITY     = MacroArgumentFormat(lambda pn: str(pn.getVelocity()), 'VELOCITY')
+FORMAT_TIME         = MacroArgumentFormat(lambda pn: str(pn.getTime()), 'TIME')
+FORMAT_NONE         = MacroArgumentFormat(lambda _: '', 'NONE')
+FORMATS = {
+    'MIDI': FORMAT_MIDI,
+    'ASPN': FORMAT_ASPN,
+    'ASPN_UNICODE': FORMAT_ASPN_UNICODE,
+    'PIANO': FORMAT_PIANO,
+    'VELOCITY': FORMAT_VELOCITY,
+    'TIME': FORMAT_TIME,
+    'NONE': FORMAT_NONE
+}
 
 
 class MacroArgumentNumberRange:
@@ -73,10 +78,10 @@ class MacroArgumentDefinition:
     def __str__(self):
         argumentNumRangeString = f'[{self.argumentNumberRange.getLowerBound()}:{self.argumentNumberRange.getUpperBound()}]'
         replaceDefinitionString = f'"{self.replaceString}"→' if self.replaceString else ''
-        argumentFormatString = self.argumentFormat.name if isinstance(self.argumentFormat, MacroArgumentFormat) else '|'.join(
+        argumentFormatString = self.argumentFormat.getName() if isinstance(self.argumentFormat, MacroArgumentFormat) else '|'.join(
             (s if isinstance(s, str) else str(s) for s in self.argumentFormat))
         return (f'*{argumentNumRangeString}({replaceDefinitionString}{argumentFormatString})')
 
 
 ZERO_ARGUMENT_DEFINITION = MacroArgumentDefinition(
-    MacroArgumentFormat.NONE, argumentNumberRange=ZERO_MANR)
+    FORMAT_NONE, argumentNumberRange=ZERO_MANR)
