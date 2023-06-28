@@ -16,7 +16,8 @@ class MidiListener():
         self.lastChangeWasAdd = False
         macroFile = config['macro-file']
         if (not macroFile):
-            print(f'ERROR: macro file not specified for profile: {self.name}', file=sys.stderr)
+            print(
+                f'ERROR: macro file not specified for profile: {self.name}', file=sys.stderr)
             sys.exit(-1)
         with open(macroFile, 'r') as configFile:
             self.macroTree = parser.parseMacroFile(configFile)

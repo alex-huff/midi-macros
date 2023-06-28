@@ -14,16 +14,19 @@ class MacroArgumentFormat():
         return self.name
 
     def __str__(self):
-        return self.name
+        return self.getName()
 
 
-FORMAT_MIDI         = MacroArgumentFormat(lambda pn: str(pn.getNote()), 'MIDI')
-FORMAT_ASPN         = MacroArgumentFormat(lambda pn: midiNoteToASPN(pn.getNote(), False), 'ASPN')
-FORMAT_ASPN_UNICODE = MacroArgumentFormat(lambda pn: midiNoteToASPN(pn.getNote()), 'ASPN_UNICODE')
-FORMAT_PIANO        = MacroArgumentFormat(lambda pn: str(pn.getNote() - 20), 'PIANO')
-FORMAT_VELOCITY     = MacroArgumentFormat(lambda pn: str(pn.getVelocity()), 'VELOCITY')
-FORMAT_TIME         = MacroArgumentFormat(lambda pn: str(pn.getTime()), 'TIME')
-FORMAT_NONE         = MacroArgumentFormat(lambda _: '', 'NONE')
+FORMAT_MIDI = MacroArgumentFormat(lambda pn: str(pn.getNote()), 'MIDI')
+FORMAT_ASPN = MacroArgumentFormat(
+    lambda pn: midiNoteToASPN(pn.getNote(), False), 'ASPN')
+FORMAT_ASPN_UNICODE = MacroArgumentFormat(
+    lambda pn: midiNoteToASPN(pn.getNote()), 'ASPN_UNICODE')
+FORMAT_PIANO = MacroArgumentFormat(lambda pn: str(pn.getNote() - 20), 'PIANO')
+FORMAT_VELOCITY = MacroArgumentFormat(
+    lambda pn: str(pn.getVelocity()), 'VELOCITY')
+FORMAT_TIME = MacroArgumentFormat(lambda pn: str(pn.getTime()), 'TIME')
+FORMAT_NONE = MacroArgumentFormat(lambda _: '', 'NONE')
 FORMATS = {
     'MIDI': FORMAT_MIDI,
     'ASPN': FORMAT_ASPN,
