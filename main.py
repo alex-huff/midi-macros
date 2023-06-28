@@ -14,7 +14,7 @@ if (not os.path.exists(configDirPath)):
     os.makedirs(configDirPath)
 elif (not os.path.isdir(configDirPath)):
     print(
-        f'ERROR: Config directory {configDirPath} already exists as a file', file=sys.stderr)
+        f'ERROR: config directory {configDirPath} already exists as a file', file=sys.stderr)
     sys.exit(-1)
 
 configFilePath = os.path.join(configDirPath, 'config.toml')
@@ -24,7 +24,7 @@ if (not os.path.exists(macroDirPath)):
     os.makedirs(configDirPath)
 elif (not os.path.isdir(macroDirPath)):
     print(
-        f'ERROR: Macro directory already exists as a file', file=sys.stderr)
+        f'ERROR: macro directory already exists as a file', file=sys.stderr)
     sys.exit(-1)
 
 if (not os.path.exists(configFilePath)):
@@ -49,3 +49,4 @@ for key, value in data.items():
     listeners[key] = MidiListener(config, key)
 
 for listener in listeners.values():
+    threading.Thread(target=listener.run).run()
