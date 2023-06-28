@@ -2,10 +2,10 @@ import subprocess
 import sys
 from itertools import islice, accumulate
 from statistics import mean
-from MacroTreeNode import MacroTreeNode
-from MacroArgument import MacroArgumentFormat
-from MacroNote import MacroNote
-from MacroChord import MacroChord
+from macro_tree_node import MacroTreeNode
+from macro_argument import MacroArgumentFormat
+from macro_note import MacroNote
+from macro_chord import MacroChord
 
 
 def nanoSecondsToSeconds(elapsedTime):

@@ -1,6 +1,6 @@
 from enum import Enum
 import math
-from ASPN import midiNoteToASPN
+from aspn import midiNoteToASPN
 
 
 class MacroArgumentFormat(Enum):

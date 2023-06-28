@@ -1,4 +1,4 @@
-import ASPN
+import aspn
 
 
 class MacroNote:
@@ -17,7 +17,7 @@ class MacroNote:
 
     def __str__(self):
         matchPredicateString = f'{{{self.matchPredicate}}}' if self.matchPredicate != 'True' else ''
-        return f'{ASPN.midiNoteToASPN(self.note)}{matchPredicateString}'
+        return f'{aspn.midiNoteToASPN(self.note)}{matchPredicateString}'
 
     def __eq__(self, other):
         if (isinstance(other, MacroNote)):

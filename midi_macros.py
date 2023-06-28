@@ -2,15 +2,15 @@ import os
 import sys
 import time
 import mido
-import ASPN
-import Parser
-from PlayedNote import PlayedNote
+import aspn
+import parser
+from played_note import PlayedNote
 from appdirs import user_config_dir
 
 
 def executeMacros(macroTree, pressed):
     print(
-        f'Evaluating pressed keys: {[ASPN.midiNoteToASPN(playedNote.getNote()) for playedNote in pressed]}')
+        f'Evaluating pressed keys: {[aspn.midiNoteToASPN(playedNote.getNote()) for playedNote in pressed]}')
     macroTree.executeMacros(pressed)
 
 
@@ -31,7 +31,7 @@ if (not os.path.exists(macroFilePath)):
     open(macroFilePath, 'a').close()
 
 with open(macroFilePath, 'r') as macroFile:
-    macroTree = Parser.parseMacroFile(macroFile)
+    macroTree = parser.parseMacroFile(macroFile)
 
 pressed = []
 pedalDown = False

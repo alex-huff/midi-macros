@@ -1,12 +1,12 @@
 import sys
 import re
 import math
-import ASPN
-from MacroArgument import MacroArgumentDefinition, MacroArgumentFormat, MacroArgumentNumberRange, UNBOUNDED_MANR, ZERO_ARGUMENT_DEFINITION
-from MacroTree import MacroTree
-from MacroNote import MacroNote
-from MacroChord import MacroChord
-from Macro import Macro
+import aspn
+from macro_argument import MacroArgumentDefinition, MacroArgumentFormat, MacroArgumentNumberRange, UNBOUNDED_MANR, ZERO_ARGUMENT_DEFINITION
+from macro_tree import MacroTree
+from macro_note import MacroNote
+from macro_chord import MacroChord
+from macro import Macro
 
 
 class ParseError(Exception):
@@ -200,7 +200,7 @@ def parseASPNNote(line, position):
     if (line[position] in modifiers):
         offset, position = parseASPNModifiers(line, position)
     octave, position = parseASPNOctave(line, position)
-    return ASPN.aspnOctaveBasePitchOffsetToMIDI(octave, basePitch, offset), position
+    return aspn.aspnOctaveBasePitchOffsetToMIDI(octave, basePitch, offset), position
 
 
 def parseASPNOctave(line, position):
