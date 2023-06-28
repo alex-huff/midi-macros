@@ -13,6 +13,9 @@ class ParseError(Exception):
     def __init__(self, message):
         self.message = message
 
+    def getMessage(self):
+        return self.message
+
 
 class ParseBuffer(str):
     def __getitem__(self, key):
@@ -80,7 +83,7 @@ def parseMacroFile(macroFile):
         try:
             macro, script = parseMacroFileLine(line, position)
         except ParseError as pe:
-            print(f'Parsing ERROR: {pe.message}', file=sys.stderr)
+            print(f'Parsing ERROR: {pe.getMessage()}', file=sys.stderr)
             sys.exit(-1)
         print(
             f'Adding macro {macro} → {script}')
