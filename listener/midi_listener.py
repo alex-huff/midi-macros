@@ -9,7 +9,6 @@ from listener.played_note import PlayedNote
 class MidiListener():
     def __init__(self, config, name):
         self.config = config
-        self.enabled = config['enabled']
         self.name = name
         self.pressed = []
         self.pedalDown = False
@@ -22,9 +21,6 @@ class MidiListener():
             sys.exit(-1)
         with open(macroFile, 'r') as configFile:
             self.macroTree = parser.parseMacroFile(configFile)
-
-    def isEnabled(self):
-        return self.enabled
 
     def executeMacros(self):
         print(
