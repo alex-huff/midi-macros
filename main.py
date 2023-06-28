@@ -9,23 +9,18 @@ from listener.midi_listener import MidiListener
 configDirPath = user_config_dir('midi-macros')
 macroDirPath = os.path.join(configDirPath, 'macros')
 
-if (not os.path.exists(configDirPath)):
-    print(f'Config directory {configDirPath} does not exist, creating it now')
-    os.makedirs(configDirPath)
-elif (not os.path.isdir(configDirPath)):
-    print(
-        f'ERROR: config directory {configDirPath} already exists as a file', file=sys.stderr)
-    sys.exit(-1)
+def verifyDirectoryExists(path, name):
+    if (not os.path.exists(path)):
+        print(f'INFO: {name} directory {path} does not exist, creating it now')
+        os.makedirs(path)
+    elif (not os.path.isdir(path)):
+        print(
+            f'ERROR: {name} directory {path} already exists as a file', file=sys.stderr)
+        sys.exit(-1)
 
+verifyDirectoryExists(configDirPath, 'config')
+verifyDirectoryExists(macroDirPath, 'macro')
 configFilePath = os.path.join(configDirPath, 'midi-macros.toml')
-
-if (not os.path.exists(macroDirPath)):
-    print(f'Macro directory does not exist, creating it now')
-    os.makedirs(configDirPath)
-elif (not os.path.isdir(macroDirPath)):
-    print(
-        f'ERROR: macro directory already exists as a file', file=sys.stderr)
-    sys.exit(-1)
 
 if (not os.path.exists(configFilePath)):
     print(f'Config file {configFilePath} does not exist, creating it now')
