@@ -44,7 +44,7 @@ class MidiListener():
                     ) not in self.queuedReleases]
                     self.queuedReleases.clear()
                 continue
-            wasPress = message.type == 'note_on'
+            wasPress = message.type == 'note_on' and message.velocity > 0
             note = message.note
             velocity = message.velocity
             if (wasPress):
