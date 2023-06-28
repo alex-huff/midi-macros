@@ -1,4 +1,4 @@
-import aspn
+from aspn import aspn
 
 
 class MacroNote:

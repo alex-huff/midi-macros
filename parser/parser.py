@@ -1,12 +1,12 @@
 import sys
 import re
 import math
-import aspn
-from macro_argument import MacroArgumentDefinition, MacroArgumentFormat, MacroArgumentNumberRange, UNBOUNDED_MANR, ZERO_ARGUMENT_DEFINITION
-from macro_tree import MacroTree
-from macro_note import MacroNote
-from macro_chord import MacroChord
-from macro import Macro
+from aspn import aspn
+from macro.macro_argument import MacroArgumentDefinition, MacroArgumentFormat, MacroArgumentNumberRange, UNBOUNDED_MANR, ZERO_ARGUMENT_DEFINITION
+from tree.macro_tree import MacroTree
+from macro.macro_note import MacroNote
+from macro.macro_chord import MacroChord
+from macro.macro import Macro
 
 
 class ParseError(Exception):

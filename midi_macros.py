@@ -2,9 +2,9 @@ import os
 import sys
 import time
 import mido
-import aspn
-import parser
-from played_note import PlayedNote
+from parser import parser
+from aspn import aspn
+from listener.played_note import PlayedNote
 from appdirs import user_config_dir
 
 
