@@ -1,63 +1,77 @@
 import time
 import sys
-import mido
+from rtmidi.midiutil import open_midiinput
 from aspn import aspn
 from parser import parser
 from listener.played_note import PlayedNote
+from midi.constants import *
 
 
 class MidiListener():
     def __init__(self, config, name):
         self.config = config
         self.name = name
-        macroFile = config['macro-file']
-        if (not macroFile):
+
+    def updateConfig(self, config):
+        self.config = config
+
+    def initState(self):
+        self.macroFile = self.config['macro-file']
+        if (not self.macroFile):
             print(
                 f'ERROR: macro file not specified for profile: {self.name}', file=sys.stderr)
             sys.exit(-1)
-        with open(macroFile, 'r') as configFile:
+        with open(self.macroFile, 'r') as configFile:
             self.macroTree = parser.parseMacroFile(configFile)
+        self.pressed = []
+        self.pedalDown = False
+        self.queuedReleases = set()
+        self.lastChangeWasAdd = False
 
-    def executeMacros(self, pressed):
+    def __call__(self, event, data=None):
+        (status, data_1, data_2), _ = event
+        if (status != NOTE_ON_STATUS and status != NOTE_OFF_STATUS and (status != CONTROL_CHANGE_STATUS or data_1 != SUSTAIN_PEDAL)):
+            return
+        if (status == CONTROL_CHANGE_STATUS):
+            if (data_2 > 0):
+                self.pedalDown = True
+            else:
+                self.pedalDown = False
+                if (self.lastChangeWasAdd and len(self.queuedReleases) > 0):
+                    self.executeMacros()
+                    self.lastChangeWasAdd = False
+                self.pressed = [playedNote for playedNote in self.pressed if playedNote.getNote(
+                ) not in self.queuedReleases]
+                self.queuedReleases.clear()
+            return
+        velocity = data_2
+        note = data_1
+        wasPress = status == NOTE_ON_STATUS and velocity > 0
+        if (wasPress):
+            if (note in self.queuedReleases):
+                self.queuedReleases.remove(note)
+            self.pressed.append(PlayedNote(note, velocity, time.time_ns()))
+        else:
+            if (self.pedalDown):
+                self.queuedReleases.add(note)
+                return
+            else:
+                if (self.lastChangeWasAdd):
+                    self.executeMacros()
+                self.pressed = [
+                    playedNote for playedNote in self.pressed if playedNote.getNote() != note]
+        self.lastChangeWasAdd = wasPress
+
+    def executeMacros(self):
         print(
-            f'Evaluating pressed keys: {[aspn.midiNoteToASPN(playedNote.getNote()) for playedNote in pressed]}')
-        self.macroTree.executeMacros(pressed)
+            f'Evaluating pressed keys: {[aspn.midiNoteToASPN(playedNote.getNote()) for playedNote in self.pressed]}')
+        self.macroTree.executeMacros(self.pressed)
 
     def run(self):
-        pressed = []
-        pedalDown = False
-        queuedReleases = set()
-        lastChangeWasAdd = False
-        inPort = mido.open_input(self.config['midi-input'])
-        for message in inPort:
-            if (message.type != 'note_on' and message.type != 'note_off' and (message.type != 'control_change' or message.control != 64)):
-                continue
-            if (message.type == 'control_change'):
-                if (message.value > 0):
-                    pedalDown = True
-                else:
-                    pedalDown = False
-                    if (lastChangeWasAdd and len(queuedReleases) > 0):
-                        self.executeMacros(pressed)
-                        lastChangeWasAdd = False
-                    pressed = [playedNote for playedNote in pressed if playedNote.getNote(
-                    ) not in queuedReleases]
-                    queuedReleases.clear()
-                continue
-            wasPress = message.type == 'note_on' and message.velocity > 0
-            note = message.note
-            velocity = message.velocity
-            if (wasPress):
-                if (note in queuedReleases):
-                    queuedReleases.remove(note)
-                pressed.append(PlayedNote(note, velocity, time.time_ns()))
-            else:
-                if (pedalDown):
-                    queuedReleases.add(note)
-                    continue
-                else:
-                    if (lastChangeWasAdd):
-                        self.executeMacros(pressed)
-                    pressed = [
-                        playedNote for playedNote in pressed if playedNote.getNote() != note]
-            lastChangeWasAdd = wasPress
+        self.initState()
+        midiin, _ = open_midiinput(self.config['midi-input'])
+        midiin.set_callback(self)
+        while (True):
+            time.sleep(2**32)
+        midiin.close_port()
+        del midiin
