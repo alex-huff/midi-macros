@@ -69,9 +69,10 @@ class MidiListener():
 
     def run(self):
         self.initState()
-        midiin, _ = open_midiinput(self.config['midi-input'])
+        midiin, _ = open_midiinput(self.config['midi-input'], interactive=False)
         midiin.set_callback(self)
         while (True):
             time.sleep(2**32)
+        # rtmidi internally will interrupt and join with callback thread
         midiin.close_port()
         del midiin
