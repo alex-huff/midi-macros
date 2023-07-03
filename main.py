@@ -6,9 +6,10 @@ import stat
 from rtmidi import MidiIn
 from appdirs import user_config_dir
 from listener.midi_listener import ListenerException, MidiListener
-from ipc.protocol import IPCIOError, MessageFormatException, getIPCSocketPath, readMessage, sendString
+from ipc.protocol import IPCIOError, MessageFormatException, getIPCSocketPath, readMessage, sendResponse, sendResponse
+from ipc.handler import handleMessage
 from config.mm_config import SOCKET_PATH, PROFILES, MACRO_FILE, loadConfig, ConfigException
-from log.mm_logging import logInfo, logError
+from log.mm_logging import logInfo, logError, exceptionStr
 
 
 def verifyDirectoryExists(path, name):
@@ -38,7 +39,8 @@ class MidiMacros():
             self.configFilePath = os.path.join(
                 self.configDirPath, 'midi-macros.toml')
             if (not os.path.exists(self.configFilePath)):
-                logInfo(f'Config file {self.configFilePath} does not exist, creating it now')
+                logInfo(
+                    f'Config file {self.configFilePath} does not exist, creating it now')
                 open(self.configFilePath, 'a').close()
         self.initConfig()
         self.createAndRunListeners()
@@ -55,12 +57,14 @@ class MidiMacros():
         except ConfigException as configException:
             logError(configException.message)
         except (FileNotFoundError, IsADirectoryError):
-            logError(f'config file path: {self.configFilePath}, was not a valid file')
+            logError(
+                f'config file path: {self.configFilePath}, was not a valid file')
         except PermissionError:
-            logError(f'insufficient permissions to open config file: {self.configFilePath}')
+            logError(
+                f'insufficient permissions to open config file: {self.configFilePath}')
         except Exception as exception:
-            exceptionMessage = getattr(exception, 'message', repr(exception))
-            logError(f'failed to open config file: {self.configFilePath}, {exceptionMessage}')
+            logError(
+                f'failed to open config file: {self.configFilePath}, {exceptionStr(exception)}')
         return False
 
     def fixMacroFilePaths(self):
@@ -72,12 +76,19 @@ class MidiMacros():
                 profileConfig[MACRO_FILE] = os.path.join(
                     self.macroDirPath, givenMacroFilePath)
 
+    def stopListeners(self):
+        for listener in self.listeners.values():
+            listener.stop()
+
     def createAndRunListeners(self):
         self.listeners = {}
         for profileName, profileConfig in self.config[PROFILES].items():
             listener = MidiListener(profileName, profileConfig)
             self.listeners[profileName] = listener
             self.tryRunListener(profileName)
+
+    def getLoadedProfiles(self):
+        return self.listeners.keys()
 
     def tryRunListener(self, profileName):
         try:
@@ -102,40 +113,36 @@ class MidiMacros():
         try:
             mode = os.stat(self.unixSocketPath).st_mode
             if (not stat.S_ISSOCK(mode)):
-                logError(f'file: {self.unixSocketPath}, exists and is not a socket')
+                logError(
+                    f'file: {self.unixSocketPath}, exists and is not a socket')
                 sys.exit(-1)
             os.unlink(self.unixSocketPath)
         except FileNotFoundError:
             pass
         except Exception as exception:
-            exceptionMessage = getattr(exception, 'message', repr(exception))
-            logError(f'could not unlink socket file: {self.unixSocketPath}, {exceptionMessage}')
+            logError(
+                f'could not unlink socket file: {self.unixSocketPath}, {exceptionStr(exception)}')
             sys.exit(-1)
 
     def bindServer(self):
         try:
             self.ipcServer.bind(self.unixSocketPath)
         except Exception as exception:
-            exceptionMessage = getattr(exception, 'message', repr(exception))
-            logError(f'could not bind to socket file: {self.unixSocketPath}, {exceptionMessage}')
+            logError(
+                f'could not bind to socket file: {self.unixSocketPath}, {exceptionStr(exception)}')
             sys.exit(-1)
-        logInfo(f'Listening on socket: {self.unixSocketPath}')
+        logInfo(f'listening on socket: {self.unixSocketPath}')
         self.ipcServer.listen(1)
 
     def tryHandleClient(self, ipcSocket):
         try:
             message = readMessage(ipcSocket)
-            print(message)
-            # response = handleMessage(message)
-            sendString(ipcSocket, 'placeholder response')
-        except MessageFormatException as messageFormatException:
-            logError(messageFormatException.message)
-        except IPCIOError as ipcIOError:
-            logError(ipcIOError.message)
+            response = handleMessage(message, self)
+            sendResponse(ipcSocket, response)
+        except (MessageFormatException, IPCIOError) as exception:
+            logError(exception.message)
         except Exception as exception:
-            exceptionMessage = getattr(
-                exception, 'message', repr(exception))
-            logError(exceptionMessage)
+            logError(f'failed to handle client, {exceptionStr(exception)}')
         finally:
             ipcSocket.close()
 

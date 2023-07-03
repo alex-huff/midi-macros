@@ -1,6 +1,10 @@
 import sys
 
 
+def exceptionStr(exception):
+    return getattr(exception, 'message', repr(exception))
+
+
 def logInfo(message, profile=None):
     log(message, 'INFO', sys.stdout, profile)
 

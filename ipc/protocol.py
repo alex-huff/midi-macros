@@ -8,6 +8,7 @@ class MessageFormatException(Exception):
     def __init__(self, message):
         self.message = message
 
+
 class IPCIOError(Exception):
     def __init__(self, message):
         self.message = message
@@ -33,6 +34,13 @@ def sendMessage(ipcSocket, message):
         sendString(ipcSocket, string)
 
 
+def sendResponse(ipcSocket, response):
+    success, string = response
+    successInt = 0x1 if success else 0x0
+    sendUnsignedInt(ipcSocket, successInt)
+    sendString(ipcSocket, string)
+
+
 def sendString(ipcSocket, string):
     stringBytes = string.encode()
     stringBytesLen = len(stringBytes)
@@ -50,6 +58,10 @@ def sendUnsignedInt(ipcSocket, uInt, size=1):
 def readMessage(ipcSocket):
     numStrings = readUnsignedInt(ipcSocket)
     return [readString(ipcSocket) for _ in range(numStrings)]
+
+
+def readResponse(ipcSocket):
+    return (bool(readUnsignedInt(ipcSocket)), readString(ipcSocket))
 
 
 def readString(ipcSocket):

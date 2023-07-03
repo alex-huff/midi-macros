@@ -1,7 +1,7 @@
 import subprocess
-import sys
 from itertools import islice, accumulate
 from statistics import mean
+from log.mm_logging import logError
 from tree.macro_tree_node import MacroTreeNode
 from macro.macro_argument import MacroArgumentFormat
 from macro.macro_note import MacroNote
@@ -103,8 +103,7 @@ class MacroTree:
             subprocess.Popen(command, shell=True)
 
     def printMatchPredicateEvaluationError(self, matchPredicate):
-        print(
-            f'ERROR: Failed to evaluate match predicate: {matchPredicate}', file=sys.stderr)
+        logError(f'failed to evaluate match predicate: {matchPredicate}')
 
     def testChordWithMacroChord(self, playedNotes, position, macroChord):
         chordLength = len(macroChord.getChord())
@@ -130,7 +129,7 @@ class MacroTree:
         cavgv = CHORD_AVERAGE_VELOCITY
         try:
             result = eval(macroChord.getMatchPredicate())
-        except BaseException:
+        except Exception:
             self.printMatchPredicateEvaluationError(
                 macroChord.getMatchPredicate())
             return False
@@ -149,7 +148,7 @@ class MacroTree:
         et = ELAPSED_TIME
         try:
             result = eval(macroNote.getMatchPredicate())
-        except BaseException:
+        except Exception:
             self.printMatchPredicateEvaluationError(
                 macroNote.getMatchPredicate())
             return False

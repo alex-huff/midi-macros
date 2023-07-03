@@ -1,8 +1,8 @@
 import socket
 import sys
 import argparse
-from ipc.protocol import getIPCSocketPath, sendMessage, readString, IPCIOError
-from log.mm_logging import logError
+from ipc.protocol import getIPCSocketPath, sendMessage, readResponse, IPCIOError
+from log.mm_logging import logError, exceptionStr
 
 PROGRAM_NAME = 'mm-msg'
 VERSION = f'{PROGRAM_NAME} 0.0.1'
@@ -22,10 +22,10 @@ unixSocketPath = args.socket if args.socket else getIPCSocketPath()
 try:
     ipcSocket.connect(unixSocketPath)
     sendMessage(ipcSocket, args.message)
-    response = readString(ipcSocket)
+    success, string = readResponse(ipcSocket)
     if (not args.quiet):
-        print(response)
-    sys.exit(1)
+        print(string)
+    sys.exit(0 if success else -1)
 except FileNotFoundError:
     logError(f'path: {unixSocketPath}, was not a valid file')
 except PermissionError:
@@ -33,8 +33,7 @@ except PermissionError:
 except IPCIOError as ipcIOError:
     logError(ipcIOError)
 except Exception as exception:
-    exceptionMessage = getattr(exception, 'message', repr(exception))
-    logError(f'failed to send message, {exceptionMessage}')
+    logError(f'failed to send message, {exceptionStr(exception)}')
 finally:
     ipcSocket.close()
 sys.exit(-1)
