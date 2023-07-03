@@ -1,4 +1,5 @@
 import time
+from threading import Lock
 from rtmidi.midiutil import open_midiinput
 from rtmidi._rtmidi import InvalidPortError, SystemError as RTMIDISystemError, NoDevicesError
 from aspn import aspn
@@ -18,26 +19,26 @@ class MidiListener():
     def __init__(self, profileName, config):
         self.profileName = profileName
         self.config = config
+        self.pressed = []
+        self.pedalDown = False
+        self.queuedReleases = set()
+        self.lastChangeWasAdd = False
+        self.enabled = True
+        self.virtualPedalDown = False
 
-    def initialize(self):
-        macroFilePath = self.config[MACRO_FILE]
-        try:
-            with open(macroFilePath, 'r') as macroFile:
-                self.macroTree = parseMacroFile(macroFile, self.profileName)
-            self.pressed = []
-            self.pedalDown = False
-            self.queuedReleases = set()
-            self.lastChangeWasAdd = False
-        except ParseError as parseError:
-            raise ListenerException(parseError.message)
-        except (FileNotFoundError, IsADirectoryError):
-            raise ListenerException(f'invalid macro file: {macroFilePath}')
-        except PermissionError:
-            raise ListenerException(
-                f'insufficient permissions to open macro file: {macroFilePath}')
-        except Exception as exception:
-            raise ListenerException(
-                f'could not open macro file: {macroFilePath}, {exceptionStr(exception)}')
+    def toggleEnabled(self):
+        self.enabled = not self.enabled
+        return self.enabled
+
+    def toggleVirtualPedalDown(self):
+        self.virtualPedalDown = not self.virtualPedalDown
+        return self.virtualPedalDown
+
+    def setEnabled(self, enabled):
+        self.enabled = enabled
+
+    def setVirtualPedalDown(self, virtualPedalDown):
+        self.virtualPedalDown = virtualPedalDown
 
     def __call__(self, event, data=None):
         (status, data_1, data_2), _ = event
@@ -74,13 +75,31 @@ class MidiListener():
         self.lastChangeWasAdd = wasPress
 
     def executeMacros(self):
+        if (not self.enabled):
+            return
         logInfo(
             f'evaluating pressed keys: {[aspn.midiNoteToASPN(playedNote.getNote()) for playedNote in self.pressed]}', self.profileName)
         self.macroTree.executeMacros(self.pressed)
 
     def run(self):
-        self.initialize()
+        self.initializeMacros()
         self.openMIDIPort()
+
+    def initializeMacros(self):
+        macroFilePath = self.config[MACRO_FILE]
+        try:
+            with open(macroFilePath, 'r') as macroFile:
+                self.macroTree = parseMacroFile(macroFile, self.profileName)
+        except ParseError as parseError:
+            raise ListenerException(parseError.message)
+        except (FileNotFoundError, IsADirectoryError):
+            raise ListenerException(f'invalid macro file: {macroFilePath}')
+        except PermissionError:
+            raise ListenerException(
+                f'insufficient permissions to open macro file: {macroFilePath}')
+        except Exception as exception:
+            raise ListenerException(
+                f'could not open macro file: {macroFilePath}, {exceptionStr(exception)}')
 
     def openMIDIPort(self):
         try:

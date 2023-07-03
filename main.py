@@ -80,6 +80,9 @@ class MidiMacros():
         for listener in self.listeners.values():
             listener.stop()
 
+    def getProfile(self, profileName):
+        return self.listeners.get(profileName)
+
     def createAndRunListeners(self):
         self.listeners = {}
         for profileName, profileConfig in self.config[PROFILES].items():
