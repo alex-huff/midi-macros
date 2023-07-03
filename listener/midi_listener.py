@@ -1,10 +1,17 @@
 import time
 from rtmidi.midiutil import open_midiinput
+from rtmidi._rtmidi import InvalidPortError, SystemError as RTMIDISystemError, NoDevicesError
 from aspn import aspn
-from parser import parser
+from log.mm_logging import logInfo
+from parser.parser import ParseError, parseMacroFile
 from listener.played_note import PlayedNote
 from midi.constants import *
 from config.mm_config import MACRO_FILE, MIDI_INPUT
+
+
+class ListenerException(Exception):
+    def __init__(self, message):
+        self.message = message
 
 
 class MidiListener():
@@ -15,13 +22,26 @@ class MidiListener():
     def updateConfig(self, config):
         self.config = config
 
-    def initState(self):
-        with open(self.config[MACRO_FILE], 'r') as macroFile:
-            self.macroTree = parser.parseMacroFile(macroFile, self.profileName)
-        self.pressed = []
-        self.pedalDown = False
-        self.queuedReleases = set()
-        self.lastChangeWasAdd = False
+    def initialize(self):
+        macroFilePath = self.config[MACRO_FILE]
+        try:
+            with open(macroFilePath, 'r') as macroFile:
+                self.macroTree = parseMacroFile(macroFile, self.profileName)
+            self.pressed = []
+            self.pedalDown = False
+            self.queuedReleases = set()
+            self.lastChangeWasAdd = False
+        except ParseError as parseError:
+            raise ListenerException(parseError.message)
+        except (FileNotFoundError, IsADirectoryError):
+            raise ListenerException(f'invalid macro file: {macroFilePath}')
+        except PermissionError:
+            raise ListenerException(
+                f'insufficient permissions to open macro file: {macroFilePath}')
+        except Exception as exception:
+            exceptionMessage = getattr(exception, 'message', repr(exception))
+            raise ListenerException(
+                f'could not open macro file: {macroFilePath}, {exceptionMessage}')
 
     def __call__(self, event, data=None):
         (status, data_1, data_2), _ = event
@@ -58,15 +78,24 @@ class MidiListener():
         self.lastChangeWasAdd = wasPress
 
     def executeMacros(self):
-        print(
-            f'[{self.profileName}]: Evaluating pressed keys: {[aspn.midiNoteToASPN(playedNote.getNote()) for playedNote in self.pressed]}')
+        logInfo(f'evaluating pressed keys: {[aspn.midiNoteToASPN(playedNote.getNote()) for playedNote in self.pressed]}', self.profileName)
         self.macroTree.executeMacros(self.pressed)
 
     def run(self):
-        self.initState()
-        self.midiin, _ = open_midiinput(
-            self.config[MIDI_INPUT], interactive=False)
-        self.midiin.set_callback(self)
+        self.initialize()
+        self.openMIDIPort()
+
+    def openMIDIPort(self):
+        try:
+            self.midiin, _ = open_midiinput(
+                self.config[MIDI_INPUT], interactive=False)
+            self.midiin.set_callback(self)
+        except InvalidPortError:
+            raise ListenerException(f'invalid midi port: {self.config[MIDI_INPUT]}')
+        except RTMIDISystemError:
+            raise ListenerException('MIDI system error')
+        except NoDevicesError:
+            raise ListenerException('no MIDI devices')
 
     def stop(self):
         # rtmidi internally will interrupt and join with callback thread

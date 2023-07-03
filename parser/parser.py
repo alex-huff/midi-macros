@@ -1,5 +1,6 @@
 import re
 import math
+from log.mm_logging import logInfo
 from aspn import aspn
 from macro.macro_argument import *
 from tree.macro_tree import MacroTree
@@ -76,8 +77,7 @@ def parseMacroFile(macroFile, profileName):
         if (line[position] == '#'):
             continue
         macro, script = parseMacroFileLine(line, position)
-        print(
-            f'[{profileName}]: Adding macro: {macro} → {script}')
+        logInfo(f'adding macro: {macro} → {script}', profileName)
         macroTree.addMacroToTree(macro, script)
     return macroTree
 

@@ -2,6 +2,7 @@ import socket
 import sys
 import argparse
 from ipc.protocol import getIPCSocketPath, sendMessage, readString, IPCIOError
+from log.mm_logging import logError
 
 PROGRAM_NAME = 'mm-msg'
 VERSION = f'{PROGRAM_NAME} 0.0.1'
@@ -24,22 +25,16 @@ try:
     response = readString(ipcSocket)
     if (not args.quiet):
         print(response)
+    sys.exit(1)
 except FileNotFoundError:
-    print(
-        f'ERROR: path: {unixSocketPath}, was not a valid file', file=sys.stderr)
-    sys.exit(-1)
+    logError(f'path: {unixSocketPath}, was not a valid file')
 except PermissionError:
-    print(
-        f'ERROR: insufficient permissions to open file: {unixSocketPath}', file=sys.stderr)
-    sys.exit(-1)
+    logError(f'insufficient permissions to open file: {unixSocketPath}')
 except IPCIOError as ipcIOError:
-    print(
-        f'ERROR: {ipcIOError}', file=sys.stderr)
-    sys.exit(-1)
+    logError(ipcIOError)
 except Exception as exception:
     exceptionMessage = getattr(exception, 'message', repr(exception))
-    print(
-        f'ERROR: failed to send message, {exceptionMessage}', file=sys.stderr)
-    sys.exit(-1)
+    logError(f'failed to send message, {exceptionMessage}')
 finally:
     ipcSocket.close()
+sys.exit(-1)
