@@ -23,21 +23,25 @@ class MacroTreeNode:
 
     def addScript(self, script, argumentDefinition):
         self.updateMinNotesTillScriptExecution(
-            argumentDefinition.getArgumentNumberRange().getLowerBound())
+            argumentDefinition.getArgumentNumberRange().getLowerBound()
+        )
         self.updateMaxNotesTillScriptExecution(
-            argumentDefinition.getArgumentNumberRange().getUpperBound())
+            argumentDefinition.getArgumentNumberRange().getUpperBound()
+        )
         self.scripts.append((script, argumentDefinition))
 
     def getScripts(self):
         return self.scripts
 
     def updateMinNotesTillScriptExecution(self, notes):
-        self.minNotesTillScriptExecution = min(
-            self.minNotesTillScriptExecution, notes)
+        self.minNotesTillScriptExecution = min(self.minNotesTillScriptExecution, notes)
 
     def updateMaxNotesTillScriptExecution(self, notes):
-        self.maxNotesTillScriptExecution = max(
-            self.maxNotesTillScriptExecution, notes)
+        self.maxNotesTillScriptExecution = max(self.maxNotesTillScriptExecution, notes)
 
     def shouldProcessNumNotes(self, notes):
-        return self.minNotesTillScriptExecution <= notes <= self.maxNotesTillScriptExecution
+        return (
+            self.minNotesTillScriptExecution
+            <= notes
+            <= self.maxNotesTillScriptExecution
+        )

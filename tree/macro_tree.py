@@ -40,84 +40,107 @@ class MacroTree:
 
     def addMacroToTree(self, macro, script):
         currentNode = self.root
-        notesToScriptExecution = list(accumulate(
-            self.numNotesInTrigger(t) for t in reversed(macro.getTriggers())))
+        notesToScriptExecution = list(
+            accumulate(self.numNotesInTrigger(t) for t in reversed(macro.getTriggers()))
+        )
         notesToScriptExecution.reverse()
-        minArguments = macro.getArgumentDefinition(
-        ).getArgumentNumberRange().getLowerBound()
-        maxArguments = macro.getArgumentDefinition(
-        ).getArgumentNumberRange().getUpperBound()
+        minArguments = (
+            macro.getArgumentDefinition().getArgumentNumberRange().getLowerBound()
+        )
+        maxArguments = (
+            macro.getArgumentDefinition().getArgumentNumberRange().getUpperBound()
+        )
 
         def updateMinAndMaxForNode(node, notes):
             node.updateMinNotesTillScriptExecution(notes + minArguments)
             node.updateMaxNotesTillScriptExecution(notes + maxArguments)
+
         i = 0
-        for i, (trigger, notes) in enumerate(zip(macro.getTriggers(), notesToScriptExecution)):
-            if (not currentNode.hasBranch(trigger)):
+        for i, (trigger, notes) in enumerate(
+            zip(macro.getTriggers(), notesToScriptExecution)
+        ):
+            if not currentNode.hasBranch(trigger):
                 break
             updateMinAndMaxForNode(currentNode, notes)
             currentNode = currentNode.getBranch(trigger)
         else:
             currentNode.addScript(script, macro.getArgumentDefinition())
             return
-        for trigger, notes in islice(zip(macro.getTriggers(), notesToScriptExecution), i, None):
+        for trigger, notes in islice(
+            zip(macro.getTriggers(), notesToScriptExecution), i, None
+        ):
             updateMinAndMaxForNode(currentNode, notes)
             currentNode = currentNode.setBranch(trigger, MacroTreeNode())
         currentNode.addScript(script, macro.getArgumentDefinition())
 
     def executeMacros(self, playedNotes):
-        if (not self.root.shouldProcessNumNotes(len(playedNotes))):
+        if not self.root.shouldProcessNumNotes(len(playedNotes)):
             return
         self.recurseMacroTreeAndExecuteMacros(self.root, 0, playedNotes)
 
     def executeNoArgScripts(self, currentNode):
         for script, argumentDefinition in currentNode.getScripts():
-            if (argumentDefinition):
-                if (not argumentDefinition.numArgumentsAllowed(0)):
+            if argumentDefinition:
+                if not argumentDefinition.numArgumentsAllowed(0):
                     continue
-                if (argumentDefinition.getReplaceString()):
-                    script = script.replace(
-                        argumentDefinition.getReplaceString(), '')
+                if argumentDefinition.getReplaceString():
+                    script = script.replace(argumentDefinition.getReplaceString(), "")
             subprocess.Popen(script, shell=True)
 
     def executeScripts(self, currentNode, playedNotes, position):
         for script, argumentDefinition in currentNode.getScripts():
             numArgumentsLeft = len(playedNotes) - position
-            if (not argumentDefinition or not argumentDefinition.numArgumentsAllowed(numArgumentsLeft)):
+            if not argumentDefinition or not argumentDefinition.numArgumentsAllowed(
+                numArgumentsLeft
+            ):
                 continue
             argumentFormat = argumentDefinition.getArgumentFormat()
             replaceString = argumentDefinition.getReplaceString()
-            if (isinstance(argumentFormat, MacroArgumentFormat)):
-                argumentGenerator = (argumentFormat.toMacroArgument(
-                    playedNote) for playedNote in islice(playedNotes, position, None))
+            if isinstance(argumentFormat, MacroArgumentFormat):
+                argumentGenerator = (
+                    argumentFormat.toMacroArgument(playedNote)
+                    for playedNote in islice(playedNotes, position, None)
+                )
             else:
-                argumentGenerator = (''.join(af if isinstance(af, str) else af.toMacroArgument(
-                    playedNote) for af in argumentFormat) for playedNote in islice(playedNotes, position, None))
-            argumentString = ' '.join(argumentGenerator)
-            if (replaceString):
+                argumentGenerator = (
+                    "".join(
+                        af if isinstance(af, str) else af.toMacroArgument(playedNote)
+                        for af in argumentFormat
+                    )
+                    for playedNote in islice(playedNotes, position, None)
+                )
+            argumentString = " ".join(argumentGenerator)
+            if replaceString:
                 command = script.replace(replaceString, argumentString)
-            elif (not argumentString.isspace()):
-                command = f'{script} {argumentString}'
+            elif not argumentString.isspace():
+                command = f"{script} {argumentString}"
             else:
                 command = script
             subprocess.Popen(command, shell=True)
 
     def printMatchPredicateEvaluationError(self, matchPredicate):
-        logError(f'failed to evaluate match predicate: {matchPredicate}')
+        logError(f"failed to evaluate match predicate: {matchPredicate}")
 
     def testChordWithMacroChord(self, playedNotes, position, macroChord):
         chordLength = len(macroChord.getChord())
         chordStart, chordEnd = position, position + chordLength - 1
-        playedChord = list(zip(
-            range(chordStart, chordEnd + 1), islice(playedNotes, chordStart, chordEnd + 1)))
+        playedChord = list(
+            zip(
+                range(chordStart, chordEnd + 1),
+                islice(playedNotes, chordStart, chordEnd + 1),
+            )
+        )
         playedChord.sort(key=lambda ip: ip[1].getNote())
         for macroNote, (position, _) in zip(macroChord.getChord(), playedChord):
-            if (not self.testNoteWithMacroNote(playedNotes, position, macroNote)):
+            if not self.testNoteWithMacroNote(playedNotes, position, macroNote):
                 return False
         CHORD_START_TIME = playedNotes[chordStart].getTime()
         CHORD_FINISH_TIME = playedNotes[chordEnd].getTime()
         CHORD_ELAPSED_TIME = CHORD_FINISH_TIME - CHORD_START_TIME
-        def velocityFromIP(ip): return ip[1].getVelocity()
+
+        def velocityFromIP(ip):
+            return ip[1].getVelocity()
+
         CHORD_MIN_VELOCITY = min(velocityFromIP(ip) for ip in playedChord)
         CHORD_MAX_VELOCITY = max(velocityFromIP(ip) for ip in playedChord)
         CHORD_AVERAGE_VELOCITY = mean(velocityFromIP(ip) for ip in playedChord)
@@ -130,33 +153,34 @@ class MacroTree:
         try:
             result = eval(macroChord.getMatchPredicate())
         except Exception:
-            self.printMatchPredicateEvaluationError(
-                macroChord.getMatchPredicate())
+            self.printMatchPredicateEvaluationError(macroChord.getMatchPredicate())
             return False
         return result
 
     def testNoteWithMacroNote(self, playedNotes, position, macroNote):
         playedNote = playedNotes[position]
-        if (playedNote.getNote() != macroNote.getNote()):
+        if playedNote.getNote() != macroNote.getNote():
             return False
         VELOCITY = playedNote.getVelocity()
         TIME = playedNote.getTime()
-        ELAPSED_TIME = None if position == 0 else playedNote.getTime() - \
-            playedNotes[position - 1].getTime()
+        ELAPSED_TIME = (
+            None
+            if position == 0
+            else playedNote.getTime() - playedNotes[position - 1].getTime()
+        )
         v = VELOCITY
         t = TIME
         et = ELAPSED_TIME
         try:
             result = eval(macroNote.getMatchPredicate())
         except Exception:
-            self.printMatchPredicateEvaluationError(
-                macroNote.getMatchPredicate())
+            self.printMatchPredicateEvaluationError(macroNote.getMatchPredicate())
             return False
         return result
 
     def recurseMacroTreeAndExecuteMacros(self, currentNode, position, playedNotes):
         keysLeftToProcess = len(playedNotes) - position
-        if (keysLeftToProcess == 0):
+        if keysLeftToProcess == 0:
             self.executeNoArgScripts(currentNode)
             return
         self.executeScripts(currentNode, playedNotes, position)
@@ -164,14 +188,20 @@ class MacroTree:
             match (trigger):
                 case (MacroChord()):
                     chordLength = len(trigger.getChord())
-                    if (len(trigger.getChord()) > keysLeftToProcess or not nextNode.shouldProcessNumNotes(keysLeftToProcess - chordLength)):
+                    if len(
+                        trigger.getChord()
+                    ) > keysLeftToProcess or not nextNode.shouldProcessNumNotes(
+                        keysLeftToProcess - chordLength
+                    ):
                         continue
-                    if (self.testChordWithMacroChord(playedNotes, position, trigger)):
+                    if self.testChordWithMacroChord(playedNotes, position, trigger):
                         self.recurseMacroTreeAndExecuteMacros(
-                            nextNode, position + chordLength, playedNotes)
+                            nextNode, position + chordLength, playedNotes
+                        )
                 case (MacroNote()):
-                    if (not nextNode.shouldProcessNumNotes(keysLeftToProcess - 1)):
+                    if not nextNode.shouldProcessNumNotes(keysLeftToProcess - 1):
                         continue
-                    if (self.testNoteWithMacroNote(playedNotes, position, trigger)):
+                    if self.testNoteWithMacroNote(playedNotes, position, trigger):
                         self.recurseMacroTreeAndExecuteMacros(
-                            nextNode, position + 1, playedNotes)
+                            nextNode, position + 1, playedNotes
+                        )

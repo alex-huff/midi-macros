@@ -1,7 +1,7 @@
 import os
 
-XDG_RUNTIME_DIR = 'XDG_RUNTIME_DIR'
-UNIX_TEMP_DIR = 'TMPDIR'
+XDG_RUNTIME_DIR = "XDG_RUNTIME_DIR"
+UNIX_TEMP_DIR = "TMPDIR"
 
 
 class MessageFormatException(Exception):
@@ -15,20 +15,21 @@ class IPCIOError(Exception):
 
 
 def getIPCSocketPath():
-    if (XDG_RUNTIME_DIR in os.environ):
+    if XDG_RUNTIME_DIR in os.environ:
         unixSocketDirPath = os.environ[XDG_RUNTIME_DIR]
-    elif (UNIX_TEMP_DIR in os.environ):
+    elif UNIX_TEMP_DIR in os.environ:
         unixSocketDirPath = os.environ[UNIX_TEMP_DIR]
     else:
-        unixSocketDirPath = '/tmp'
-    return os.path.join(unixSocketDirPath, 'midi-macros-ipc.sock')
+        unixSocketDirPath = "/tmp"
+    return os.path.join(unixSocketDirPath, "midi-macros-ipc.sock")
 
 
 def sendMessage(ipcSocket, message):
     messageLength = len(message)
-    if (messageLength > 255):
+    if messageLength > 255:
         raise MessageFormatException(
-            f'message was too long: {messageLength} (>255) strings')
+            f"message was too long: {messageLength} (>255) strings"
+        )
     sendUnsignedInt(ipcSocket, messageLength)
     for string in message:
         sendString(ipcSocket, string)
@@ -44,9 +45,10 @@ def sendResponse(ipcSocket, response):
 def sendString(ipcSocket, string):
     stringBytes = string.encode()
     stringBytesLen = len(stringBytes)
-    if (stringBytesLen > 255):
+    if stringBytesLen > 255:
         raise MessageFormatException(
-            f'encoded string: {string}, was too big: {stringBytesLen} (>255) bytes')
+            f"encoded string: {string}, was too big: {stringBytesLen} (>255) bytes"
+        )
     sendUnsignedInt(ipcSocket, stringBytesLen)
     sendall(ipcSocket, stringBytes)
 
@@ -80,10 +82,10 @@ def sendall(ipcSocket, toSend):
 def recvall(ipcSocket, toRead):
     data = bytearray(toRead)
     view = memoryview(data)
-    while (toRead):
+    while toRead:
         bytesRead = ipcSocket.recv_into(view, toRead)
-        if (not bytesRead):
-            raise IPCIOError('connection closed unexpectedly while reading')
+        if not bytesRead:
+            raise IPCIOError("connection closed unexpectedly while reading")
         view = view[bytesRead:]
         toRead -= bytesRead
     return data

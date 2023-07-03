@@ -16,11 +16,13 @@ class MacroNote:
         return (self.note, self.matchPredicate)
 
     def __str__(self):
-        matchPredicateString = f'{{{self.matchPredicate}}}' if self.matchPredicate != 'True' else ''
-        return f'{aspn.midiNoteToASPN(self.note)}{matchPredicateString}'
+        matchPredicateString = (
+            f"{{{self.matchPredicate}}}" if self.matchPredicate != "True" else ""
+        )
+        return f"{aspn.midiNoteToASPN(self.note)}{matchPredicateString}"
 
     def __eq__(self, other):
-        if (isinstance(other, MacroNote)):
+        if isinstance(other, MacroNote):
             return self.tupleRep() == other.tupleRep()
         return False
 

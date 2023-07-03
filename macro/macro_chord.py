@@ -13,11 +13,13 @@ class MacroChord:
         return (self.chord, self.matchPredicate)
 
     def __str__(self):
-        matchPredicateString = f'{{{self.matchPredicate}}}' if self.matchPredicate != 'True' else ''
+        matchPredicateString = (
+            f"{{{self.matchPredicate}}}" if self.matchPredicate != "True" else ""
+        )
         return f'({"|".join(str(note) for note in self.chord)}){matchPredicateString}'
 
     def __eq__(self, other):
-        if (isinstance(other, MacroChord)):
+        if isinstance(other, MacroChord):
             return self.tupleRep() == other.tupleRep()
         return False
 
