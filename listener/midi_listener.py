@@ -25,37 +25,61 @@ class MidiListener():
         self.lastChangeWasAdd = False
         self.enabled = True
         self.virtualPedalDown = False
+        self.listenerLock = Lock()
 
     def toggleEnabled(self):
         self.enabled = not self.enabled
         return self.enabled
 
     def toggleVirtualPedalDown(self):
-        self.virtualPedalDown = not self.virtualPedalDown
-        return self.virtualPedalDown
+        with (self.listenerLock):
+            self.virtualPedalDown = not self.virtualPedalDown
+            self.handleUpdate(None, virtualSustainToggleUpdate=True)
+            return self.virtualPedalDown
 
     def setEnabled(self, enabled):
         self.enabled = enabled
 
-    def setVirtualPedalDown(self, virtualPedalDown):
-        self.virtualPedalDown = virtualPedalDown
+    def setVirtualPedalDown(self, down):
+        with (self.listenerLock):
+            if (self.virtualPedalDown == down):
+                return
+            self.virtualPedalDown = down
+            self.handleUpdate(None, virtualSustainToggleUpdate=True)
 
     def __call__(self, event, data=None):
-        (status, data_1, data_2), _ = event
+        with (self.listenerLock):
+            self.handleUpdate(event)
+
+    def handleSustainRelease(self):
+        if (self.lastChangeWasAdd and len(self.queuedReleases) > 0):
+            self.executeMacros()
+            self.lastChangeWasAdd = False
+        self.pressed = [playedNote for playedNote in self.pressed if playedNote.getNote(
+        ) not in self.queuedReleases]
+        self.queuedReleases.clear()
+
+    def handleUpdate(self, event, virtualSustainToggleUpdate=False):
+        if (virtualSustainToggleUpdate):
+            wasSustaining = self.pedalDown or not self.virtualPedalDown
+            isSustaining = self.pedalDown or self.virtualPedalDown
+            if (wasSustaining and not isSustaining):
+                self.handleSustainRelease()
+            return
+        eventData, _ = event
+        if (len(eventData) < 3):
+            return
+        (status, data_1, data_2) = eventData
         if (status != NOTE_ON_STATUS and status != NOTE_OFF_STATUS and (status != CONTROL_CHANGE_STATUS or data_1 != SUSTAIN_PEDAL)):
             return
+        wasSustaining = self.pedalDown or self.virtualPedalDown
         if (status == CONTROL_CHANGE_STATUS):
-            if (data_2 > 0):
-                self.pedalDown = True
-            else:
-                self.pedalDown = False
-                if (self.lastChangeWasAdd and len(self.queuedReleases) > 0):
-                    self.executeMacros()
-                    self.lastChangeWasAdd = False
-                self.pressed = [playedNote for playedNote in self.pressed if playedNote.getNote(
-                ) not in self.queuedReleases]
-                self.queuedReleases.clear()
+            self.pedalDown = data_2 > 0
+            isSustaining = self.pedalDown or self.virtualPedalDown
+            if (wasSustaining and not isSustaining):
+                self.handleSustainRelease()
             return
+        isSustaining = wasSustaining
         velocity = data_2
         note = data_1
         wasPress = status == NOTE_ON_STATUS and velocity > 0
@@ -64,7 +88,7 @@ class MidiListener():
                 self.queuedReleases.remove(note)
             self.pressed.append(PlayedNote(note, velocity, time.time_ns()))
         else:
-            if (self.pedalDown):
+            if (isSustaining):
                 self.queuedReleases.add(note)
                 return
             else:
