@@ -1,22 +1,21 @@
 import socket
 import sys
 import argparse
-from ipc.ipc_utils import getIPCSocketPath, sendMessage, readString
+from ipc.protocol import getIPCSocketPath, sendMessage, readString, IPCIOError
 
-VERSION='0.0.1'
+PROGRAM_NAME = 'mm-msg'
+VERSION = f'{PROGRAM_NAME} 0.0.1'
 parser = argparse.ArgumentParser(
-    prog='mm-msg',
+    prog=PROGRAM_NAME,
     description='IPC message client for midi-macros'
 )
-parser.add_argument('-v', '--version', action='store_true', help='show version number')
+parser.add_argument('-v', '--version', action='version',
+                    version=VERSION, help='show version number and exit')
 parser.add_argument('-q', '--quiet', action='store_true', help='be quiet')
-parser.add_argument('-s', '--socket', help='alternative IPC socket path')
+parser.add_argument('-s', '--socket', help='use alternative IPC socket path')
 parser.add_argument('message', nargs='+')
 args = parser.parse_args()
 
-if (args.version):
-    print(VERSION)
-    sys.exit(1)
 ipcSocket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
 unixSocketPath = args.socket if args.socket else getIPCSocketPath()
 try:
@@ -26,13 +25,21 @@ try:
     if (not args.quiet):
         print(response)
 except FileNotFoundError:
-    print(f'ERROR: path: {unixSocketPath} was not a valid file', file=sys.stderr)
+    print(
+        f'ERROR: path: {unixSocketPath}, was not a valid file', file=sys.stderr)
     sys.exit(-1)
 except PermissionError:
-    print(f'ERROR: insufficient permissions to open file: {unixSocketPath}', file=sys.stderr)
+    print(
+        f'ERROR: insufficient permissions to open file: {unixSocketPath}', file=sys.stderr)
     sys.exit(-1)
-except:
-    print(f'ERROR: failed to connect to socket: {unixSocketPath}', file=sys.stderr)
+except IPCIOError as ipcIOError:
+    print(
+        f'ERROR: {ipcIOError}', file=sys.stderr)
+    sys.exit(-1)
+except Exception as exception:
+    exceptionMessage = getattr(exception, 'message', repr(exception))
+    print(
+        f'ERROR: failed to send message, {exceptionMessage}', file=sys.stderr)
     sys.exit(-1)
 finally:
     ipcSocket.close()

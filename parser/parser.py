@@ -1,4 +1,3 @@
-import sys
 import re
 import math
 from aspn import aspn
@@ -13,9 +12,6 @@ class ParseError(Exception):
     def __init__(self, message):
         self.message = message
 
-    def getMessage(self):
-        return self.message
-
 
 class ParseBuffer(str):
     def __getitem__(self, key):
@@ -23,7 +19,7 @@ class ParseBuffer(str):
             return ParseBuffer(str.__getitem__(self, key))
         except IndexError:
             raise ParseError(
-                f'Unexpectedly reached end of line.\n{self}\n{" " * len(self) + "^"}')
+                f'unexpectedly reached end of line.\n{self}\n{" " * len(self) + "^"}')
 
 
 lineContinuationRegex = re.compile(r'\\\s*\n')
@@ -42,15 +38,15 @@ argumentFormatShorthandToMAF = {
 
 def generateParseError(line, position, expected, got):
     arrowLine = ' ' * position + '^'
-    expectedString = f'Expected: {expected}\n' if expected else ''
-    gotString = f'Got: {got}\n' if got else ''
+    expectedString = f'expected: {expected}\n' if expected else ''
+    gotString = f'got: {got}\n' if got else ''
     raise ParseError(
-        f'\n{expectedString}{gotString}While parsing:\n{line}\n{arrowLine}')
+        f'\n{expectedString}{gotString}while parsing:\n{line}\n{arrowLine}')
 
 
 def generateInvalidMIDIError(line, position, note):
     arrowLine = ' ' * position + '^'
-    raise ParseError(f'\nInvalid MIDI note: {note}\n{line}\n{arrowLine}')
+    raise ParseError(f'\ninvalid MIDI note: {note}\n{line}\n{arrowLine}')
 
 
 def preprocessFile(macroFile):
@@ -63,13 +59,12 @@ def validateMacroSequenceAndGetMacro(sequence):
     argumentDefinition = sequence[-1] if endingWithMacroDefinition else ZERO_ARGUMENT_DEFINITION
     triggers = sequence[:-1 if endingWithMacroDefinition else None]
     for t in (t for t in triggers if isinstance(t, MacroArgumentDefinition)):
-        print(
-            f'ERROR: Argument definition: {t} found before end of macro', file=sys.stderr)
-        sys.exit(-1)
+        raise ParseError(
+            f'argument definition: {t}, found before end of macro')
     return Macro(triggers, argumentDefinition)
 
 
-def parseMacroFile(macroFile):
+def parseMacroFile(macroFile, profileName):
     macroTree = MacroTree()
     processedText = preprocessFile(macroFile)
     for line in processedText.split('\n'):
@@ -80,13 +75,9 @@ def parseMacroFile(macroFile):
         position = eatWhitespace(line, position)
         if (line[position] == '#'):
             continue
-        try:
-            macro, script = parseMacroFileLine(line, position)
-        except ParseError as pe:
-            print(f'Parsing ERROR: {pe.getMessage()}', file=sys.stderr)
-            sys.exit(-1)
+        macro, script = parseMacroFileLine(line, position)
         print(
-            f'Adding macro {macro} → {script}')
+            f'[{profileName}]: Adding macro: {macro} → {script}')
         macroTree.addMacroToTree(macro, script)
     return macroTree
 
@@ -358,7 +349,7 @@ def parseQuotedString(line, position, quoteChar='"'):
     try:
         decodedString = decodeCStyleEscapes(rawString)
     except UnicodeDecodeError as ude:
-        raise ParseError(f'Failed to decode string: {rawString}, {ude.reason}')
+        raise ParseError(f'failed to decode string: {rawString}, {ude.reason}')
     return decodedString, line
 
 

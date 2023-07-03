@@ -1,28 +1,23 @@
 import time
-import sys
 from rtmidi.midiutil import open_midiinput
 from aspn import aspn
 from parser import parser
 from listener.played_note import PlayedNote
 from midi.constants import *
+from config.mm_config import MACRO_FILE, MIDI_INPUT
 
 
 class MidiListener():
-    def __init__(self, config, name):
+    def __init__(self, profileName, config):
+        self.profileName = profileName
         self.config = config
-        self.name = name
 
     def updateConfig(self, config):
         self.config = config
 
     def initState(self):
-        self.macroFile = self.config['macro-file']
-        if (not self.macroFile):
-            print(
-                f'ERROR: macro file not specified for profile: {self.name}', file=sys.stderr)
-            sys.exit(-1)
-        with open(self.macroFile, 'r') as configFile:
-            self.macroTree = parser.parseMacroFile(configFile)
+        with open(self.config[MACRO_FILE], 'r') as macroFile:
+            self.macroTree = parser.parseMacroFile(macroFile, self.profileName)
         self.pressed = []
         self.pedalDown = False
         self.queuedReleases = set()
@@ -64,15 +59,18 @@ class MidiListener():
 
     def executeMacros(self):
         print(
-            f'Evaluating pressed keys: {[aspn.midiNoteToASPN(playedNote.getNote()) for playedNote in self.pressed]}')
+            f'[{self.profileName}]: Evaluating pressed keys: {[aspn.midiNoteToASPN(playedNote.getNote()) for playedNote in self.pressed]}')
         self.macroTree.executeMacros(self.pressed)
 
     def run(self):
         self.initState()
-        midiin, _ = open_midiinput(self.config['midi-input'], interactive=False)
-        midiin.set_callback(self)
-        while (True):
-            time.sleep(2**32)
+        self.midiin, _ = open_midiinput(
+            self.config[MIDI_INPUT], interactive=False)
+        self.midiin.set_callback(self)
+
+    def stop(self):
         # rtmidi internally will interrupt and join with callback thread
-        midiin.close_port()
-        del midiin
+        if (not self.midiin):
+            return
+        self.midiin.close_port()
+        del self.midiin

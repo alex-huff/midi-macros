@@ -4,12 +4,13 @@ XDG_RUNTIME_DIR = 'XDG_RUNTIME_DIR'
 UNIX_TEMP_DIR = 'TMPDIR'
 
 
-class MessageFormatError(Exception):
+class MessageFormatException(Exception):
     def __init__(self, message):
         self.message = message
 
-    def getMessage(self):
-        return self.message
+class IPCIOError(Exception):
+    def __init__(self, message):
+        self.message = message
 
 
 def getIPCSocketPath():
@@ -25,7 +26,7 @@ def getIPCSocketPath():
 def sendMessage(ipcSocket, message):
     messageLength = len(message)
     if (messageLength > 255):
-        raise MessageFormatError(
+        raise MessageFormatException(
             f'message was too long: {messageLength} (>255) strings')
     sendUnsignedInt(ipcSocket, messageLength)
     for string in message:
@@ -36,8 +37,8 @@ def sendString(ipcSocket, string):
     stringBytes = string.encode()
     stringBytesLen = len(stringBytes)
     if (stringBytesLen > 255):
-        raise MessageFormatError(
-            f'encoded string: {string} was too big: {stringBytesLen} (>255) bytes')
+        raise MessageFormatException(
+            f'encoded string: {string}, was too big: {stringBytesLen} (>255) bytes')
     sendUnsignedInt(ipcSocket, stringBytesLen)
     sendall(ipcSocket, stringBytes)
 
@@ -70,7 +71,7 @@ def recvall(ipcSocket, toRead):
     while (toRead):
         bytesRead = ipcSocket.recv_into(view, toRead)
         if (not bytesRead):
-            raise IOError()
+            raise IPCIOError('connection closed unexpectedly while reading')
         view = view[bytesRead:]
         toRead -= bytesRead
     return data
