@@ -2,7 +2,7 @@ import subprocess
 from itertools import islice, accumulate
 from statistics import mean
 from log.mm_logging import logError
-from tree.macro_tree_node import MacroTreeNode
+from macro.tree.macro_tree_node import MacroTreeNode
 from macro.macro_argument import MacroArgumentFormat
 from macro.macro_note import MacroNote
 from macro.macro_chord import MacroChord
@@ -40,10 +40,10 @@ class MacroTree:
 
     def addMacroToTree(self, macro, script):
         currentNode = self.root
-        notesToScriptExecution = list(
+        notesTillScriptExecution = list(
             accumulate(self.numNotesInTrigger(t) for t in reversed(macro.getTriggers()))
         )
-        notesToScriptExecution.reverse()
+        notesTillScriptExecution.reverse()
         minArguments = (
             macro.getArgumentDefinition().getArgumentNumberRange().getLowerBound()
         )
@@ -51,26 +51,13 @@ class MacroTree:
             macro.getArgumentDefinition().getArgumentNumberRange().getUpperBound()
         )
 
-        def updateMinAndMaxForNode(node, notes):
-            node.updateMinNotesTillScriptExecution(notes + minArguments)
-            node.updateMaxNotesTillScriptExecution(notes + maxArguments)
-
-        i = 0
-        for i, (trigger, notes) in enumerate(
-            zip(macro.getTriggers(), notesToScriptExecution)
-        ):
-            if not currentNode.hasBranch(trigger):
-                break
-            updateMinAndMaxForNode(currentNode, notes)
-            currentNode = currentNode.getBranch(trigger)
-        else:
-            currentNode.addScript(script, macro.getArgumentDefinition())
-            return
-        for trigger, notes in islice(
-            zip(macro.getTriggers(), notesToScriptExecution), i, None
-        ):
-            updateMinAndMaxForNode(currentNode, notes)
-            currentNode = currentNode.setBranch(trigger, MacroTreeNode())
+        for trigger, notes in zip(macro.getTriggers(), notesTillScriptExecution):
+            currentNode.updateMinNotesTillScriptExecution(notes + minArguments)
+            currentNode.updateMaxNotesTillScriptExecution(notes + maxArguments)
+            if currentNode.hasBranch(trigger):
+                currentNode = currentNode.getBranch(trigger)
+            else:
+                currentNode = currentNode.setBranch(trigger, MacroTreeNode())
         currentNode.addScript(script, macro.getArgumentDefinition())
 
     def executeMacros(self, playedNotes):

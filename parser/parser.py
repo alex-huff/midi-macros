@@ -3,7 +3,7 @@ import math
 from log.mm_logging import logInfo
 from aspn import aspn
 from macro.macro_argument import *
-from tree.macro_tree import MacroTree
+from macro.tree.macro_tree import MacroTree
 from macro.macro_note import MacroNote
 from macro.macro_chord import MacroChord
 from macro.macro import Macro
