@@ -9,6 +9,7 @@ from macro.matching import (
     testChordWithMacroChord,
     numNotesInTrigger,
 )
+from log.mm_logging import logError, exceptionStr
 
 
 class MacroTree:
@@ -21,7 +22,8 @@ class MacroTree:
     def addMacroToTree(self, macro, script):
         currentNode = self.root
         notesTillScriptExecution = list(
-            accumulate(numNotesInTrigger(t) for t in reversed(macro.getTriggers()))
+            accumulate(numNotesInTrigger(t)
+                       for t in reversed(macro.getTriggers()))
         )
         notesTillScriptExecution.reverse()
         minArguments = (
@@ -45,14 +47,22 @@ class MacroTree:
             return
         self.recurseMacroTreeAndExecuteMacros(self.root, 0, playedNotes)
 
+    def executeScript(self, script):
+        try:
+            subprocess.Popen(script, shell=True)
+        except Exception as exception:
+            logError(
+                f"failed to run script, {exceptionStr(exception)}")
+
     def executeNoArgScripts(self, currentNode):
         for script, argumentDefinition in currentNode.getScripts():
             if argumentDefinition:
                 if not argumentDefinition.numArgumentsAllowed(0):
                     continue
                 if argumentDefinition.getReplaceString():
-                    script = script.replace(argumentDefinition.getReplaceString(), "")
-            subprocess.Popen(script, shell=True)
+                    script = script.replace(
+                        argumentDefinition.getReplaceString(), "")
+            self.executeScript(script)
 
     def executeScripts(self, currentNode, playedNotes, position):
         for script, argumentDefinition in currentNode.getScripts():
@@ -71,7 +81,8 @@ class MacroTree:
             else:
                 argumentGenerator = (
                     "".join(
-                        af if isinstance(af, str) else af.toMacroArgument(playedNote)
+                        af if isinstance(
+                            af, str) else af.toMacroArgument(playedNote)
                         for af in argumentFormat
                     )
                     for playedNote in islice(playedNotes, position, None)
@@ -83,7 +94,7 @@ class MacroTree:
                 command = f"{script} {argumentString}"
             else:
                 command = script
-            subprocess.Popen(command, shell=True)
+            self.executeScript(command)
 
     def recurseMacroTreeAndExecuteMacros(self, currentNode, position, playedNotes):
         keysLeftToProcess = len(playedNotes) - position

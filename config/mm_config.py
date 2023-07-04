@@ -13,6 +13,8 @@ ENABLED = "enabled"
 MIDI_INPUT = "midi-input"
 MACRO_FILE = "macro-file"
 TOGGLE_TRIGGER = "toggle-trigger"
+TOGGLE_CALLBACK = "toggle-callback"
+VIRTUAL_SUSTAIN_CALLBACK = "virtual-sustain-callback"
 
 PROFILES = "profiles"
 
@@ -22,6 +24,8 @@ PROFILE_SETTINGS = {
     MIDI_INPUT: str,
     MACRO_FILE: str,
     TOGGLE_TRIGGER: str,
+    TOGGLE_CALLBACK: str,
+    VIRTUAL_SUSTAIN_CALLBACK: str,
 }
 REQUIRED_SETTINGS = set()
 REQUIRED_PROFILE_SETTINGS = set((MIDI_INPUT, MACRO_FILE))

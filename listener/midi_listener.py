@@ -1,3 +1,4 @@
+import subprocess
 import time
 from threading import RLock
 from rtmidi.midiutil import open_midiinput
@@ -7,12 +8,18 @@ from rtmidi._rtmidi import (
     NoDevicesError,
 )
 from aspn import aspn
-from log.mm_logging import logInfo, exceptionStr
+from log.mm_logging import logError, logInfo, exceptionStr
 from macro.matching import numNotesInTrigger, testTriggerWithPlayedNotes
 from parser.parser import ParseError, parseMacroFile
 from listener.played_note import PlayedNote
 from midi.constants import *
-from config.mm_config import MACRO_FILE, MIDI_INPUT, TOGGLE_TRIGGER
+from config.mm_config import (
+    MACRO_FILE,
+    MIDI_INPUT,
+    TOGGLE_TRIGGER,
+    TOGGLE_CALLBACK,
+    VIRTUAL_SUSTAIN_CALLBACK,
+)
 
 
 class ListenerException(Exception):
@@ -35,20 +42,62 @@ class MidiListener:
         self.toggleTriggerLength = (
             numNotesInTrigger(self.toggleTrigger) if self.toggleTrigger else None
         )
+        self.toggleCallback = self.config.get(TOGGLE_CALLBACK)
+        self.virtualSustainCallback = self.config.get(VIRTUAL_SUSTAIN_CALLBACK)
+        self.currentCallbackProcess = None
+
+    def executeCallback(self, callback, message):
+        try:
+            if self.currentCallbackProcess:
+                self.currentCallbackProcess.terminate()
+        except Exception as exception:
+            logError(
+                f"failed to terminate previous callback, {exceptionStr(exception)}",
+                self.profileName,
+            )
+        self.currentCallbackProcess = None
+        try:
+            process = subprocess.Popen(
+                callback,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                text=True,
+                shell=True,
+            )
+            self.currentCallbackProcess = process
+            process.stdin.write(message)
+            process.stdin.close()
+        except Exception as exception:
+            logError(
+                f"failed to run callback, {exceptionStr(exception)}",
+                self.profileName,
+            )
 
     def toggleEnabled(self):
         with self.listenerLock:
             self.enabled = not self.enabled
+            if self.toggleCallback:
+                self.executeCallback(
+                    self.toggleCallback, f"{'enabled' if self.enabled else 'disabled'}"
+                )
             return self.enabled
 
     def setEnabled(self, enabled):
         with self.listenerLock:
-            self.enabled = enabled
+            if self.enabled == enabled:
+                return
+            self.toggleEnabled()
 
     def toggleVirtualPedalDown(self):
         with self.listenerLock:
             self.virtualPedalDown = not self.virtualPedalDown
             self.handleUpdate(None, virtualSustainToggleUpdate=True)
+            if self.virtualSustainCallback:
+                self.executeCallback(
+                    self.virtualSustainCallback,
+                    f"sustain {'enabled' if self.virtualPedalDown else 'disabled'}",
+                )
             return self.virtualPedalDown
 
     def setVirtualPedalDown(self, down):
