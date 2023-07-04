@@ -1,25 +1,14 @@
 import subprocess
 from itertools import islice, accumulate
-from statistics import mean
-from log.mm_logging import logError
 from macro.tree.macro_tree_node import MacroTreeNode
 from macro.macro_argument import MacroArgumentFormat
 from macro.macro_note import MacroNote
 from macro.macro_chord import MacroChord
-
-
-def nanoSecondsToSeconds(elapsedTime):
-    return elapsedTime / 10**9
-
-
-def nanoSecondsToMilliseconds(elapsedTime):
-    return elapsedTime / 10**6
-
-
-SECONDS = nanoSecondsToSeconds
-sec = SECONDS
-MILLISECONDS = nanoSecondsToMilliseconds
-ms = MILLISECONDS
+from macro.matching import (
+    testNoteWithMacroNote,
+    testChordWithMacroChord,
+    numNotesInTrigger,
+)
 
 
 class MacroTree:
@@ -29,19 +18,10 @@ class MacroTree:
     def getRoot(self):
         return self.root
 
-    def numNotesInTrigger(self, trigger):
-        match (trigger):
-            case (MacroNote()):
-                return 1
-            case (MacroChord()):
-                return len(trigger.getChord())
-            case (_):
-                return 0
-
     def addMacroToTree(self, macro, script):
         currentNode = self.root
         notesTillScriptExecution = list(
-            accumulate(self.numNotesInTrigger(t) for t in reversed(macro.getTriggers()))
+            accumulate(numNotesInTrigger(t) for t in reversed(macro.getTriggers()))
         )
         notesTillScriptExecution.reverse()
         minArguments = (
@@ -105,66 +85,6 @@ class MacroTree:
                 command = script
             subprocess.Popen(command, shell=True)
 
-    def printMatchPredicateEvaluationError(self, matchPredicate):
-        logError(f"failed to evaluate match predicate: {matchPredicate}")
-
-    def testChordWithMacroChord(self, playedNotes, position, macroChord):
-        chordLength = len(macroChord.getChord())
-        chordStart, chordEnd = position, position + chordLength - 1
-        playedChord = list(
-            zip(
-                range(chordStart, chordEnd + 1),
-                islice(playedNotes, chordStart, chordEnd + 1),
-            )
-        )
-        playedChord.sort(key=lambda ip: ip[1].getNote())
-        for macroNote, (position, _) in zip(macroChord.getChord(), playedChord):
-            if not self.testNoteWithMacroNote(playedNotes, position, macroNote):
-                return False
-        CHORD_START_TIME = playedNotes[chordStart].getTime()
-        CHORD_FINISH_TIME = playedNotes[chordEnd].getTime()
-        CHORD_ELAPSED_TIME = CHORD_FINISH_TIME - CHORD_START_TIME
-
-        def velocityFromIP(ip):
-            return ip[1].getVelocity()
-
-        CHORD_MIN_VELOCITY = min(velocityFromIP(ip) for ip in playedChord)
-        CHORD_MAX_VELOCITY = max(velocityFromIP(ip) for ip in playedChord)
-        CHORD_AVERAGE_VELOCITY = mean(velocityFromIP(ip) for ip in playedChord)
-        cst = CHORD_START_TIME
-        cft = CHORD_FINISH_TIME
-        cet = CHORD_ELAPSED_TIME
-        cminv = CHORD_MIN_VELOCITY
-        cmaxv = CHORD_MAX_VELOCITY
-        cavgv = CHORD_AVERAGE_VELOCITY
-        try:
-            result = eval(macroChord.getMatchPredicate())
-        except Exception:
-            self.printMatchPredicateEvaluationError(macroChord.getMatchPredicate())
-            return False
-        return result
-
-    def testNoteWithMacroNote(self, playedNotes, position, macroNote):
-        playedNote = playedNotes[position]
-        if playedNote.getNote() != macroNote.getNote():
-            return False
-        VELOCITY = playedNote.getVelocity()
-        TIME = playedNote.getTime()
-        ELAPSED_TIME = (
-            None
-            if position == 0
-            else playedNote.getTime() - playedNotes[position - 1].getTime()
-        )
-        v = VELOCITY
-        t = TIME
-        et = ELAPSED_TIME
-        try:
-            result = eval(macroNote.getMatchPredicate())
-        except Exception:
-            self.printMatchPredicateEvaluationError(macroNote.getMatchPredicate())
-            return False
-        return result
-
     def recurseMacroTreeAndExecuteMacros(self, currentNode, position, playedNotes):
         keysLeftToProcess = len(playedNotes) - position
         if keysLeftToProcess == 0:
@@ -181,14 +101,14 @@ class MacroTree:
                         keysLeftToProcess - chordLength
                     ):
                         continue
-                    if self.testChordWithMacroChord(playedNotes, position, trigger):
+                    if testChordWithMacroChord(playedNotes, position, trigger):
                         self.recurseMacroTreeAndExecuteMacros(
                             nextNode, position + chordLength, playedNotes
                         )
                 case (MacroNote()):
                     if not nextNode.shouldProcessNumNotes(keysLeftToProcess - 1):
                         continue
-                    if self.testNoteWithMacroNote(playedNotes, position, trigger):
+                    if testNoteWithMacroNote(playedNotes, position, trigger):
                         self.recurseMacroTreeAndExecuteMacros(
                             nextNode, position + 1, playedNotes
                         )

@@ -24,11 +24,12 @@ class ParseBuffer(str):
             )
 
 
-lineContinuationRegex = re.compile(r"\\\s*\n")
-basePitchRegex = re.compile(r"[A-Ga-g]")
-modifiers = "#♯b♭𝄪𝄫"
-argumentFormatShorthands = "mpaAvt"
-argumentFormatShorthandToMAF = {
+LINE_CONTINUATION_REGEX = re.compile(r"\\\s*\n")
+ARROW_START_CHARS = "→-"
+BASE_PITCH_REGEX = re.compile(r"[A-Ga-g]")
+MODIFIERS = "#♯b♭𝄪𝄫"
+ARGUMENT_FORMAT_SHORTHANDS = "mpaAvt"
+ARGUMENT_FORMAT_SHORTHANDS_TO_AF = {
     "m": FORMAT_MIDI,
     "p": FORMAT_PIANO,
     "a": FORMAT_ASPN,
@@ -53,18 +54,7 @@ def generateInvalidMIDIError(line, position, note):
 
 
 def preprocessFile(macroFile):
-    return lineContinuationRegex.sub("", macroFile.read())
-
-
-def validateMacroSequenceAndGetMacro(sequence):
-    endingWithMacroDefinition = isinstance(sequence[-1], MacroArgumentDefinition)
-    argumentDefinition = (
-        sequence[-1] if endingWithMacroDefinition else ZERO_ARGUMENT_DEFINITION
-    )
-    triggers = sequence[: -1 if endingWithMacroDefinition else None]
-    for t in (t for t in triggers if isinstance(t, MacroArgumentDefinition)):
-        raise ParseError(f"argument definition: {t}, found before end of macro")
-    return Macro(triggers, argumentDefinition)
+    return LINE_CONTINUATION_REGEX.sub("", macroFile.read())
 
 
 def parseMacroFile(macroFile, profileName):
@@ -85,25 +75,34 @@ def parseMacroFile(macroFile, profileName):
 
 
 def eatWhitespace(line, position):
-    while line[position].isspace():
+    while position < len(line) and line[position].isspace():
         position += 1
     return position
 
 
 def parseMacroFileLine(line, position):
-    macro, position = parseMacroDefinition(line, position)
+    triggers, position = parseTriggers(line, position)
     position = eatWhitespace(line, position)
-    position = parseArrow(line, position, otherExpected="+")
+    if line[position] != "*" and line[position] not in ARROW_START_CHARS:
+        generateParseError(
+            line,
+            position,
+            "+, argument definition, or arrow operator (->, →)",
+            line[position],
+        )
+    argumentDefinition = ZERO_ARGUMENT_DEFINITION
+    if line[position] == "*":
+        argumentDefinition, position = parseArgumentDefinition(line, position)
+    position = eatWhitespace(line, position)
+    position = parseArrow(line, position)
     position = eatWhitespace(line, position)
     script = parseScripts(line, position)
-    return macro, script
+    return Macro(triggers, argumentDefinition), script
 
 
-def parseArrow(line, position, otherExpected=None):
-    if line[position] not in "→-":
-        otherMessage = f" or {otherExpected}" if otherExpected else ""
-        message = f"arrow operator (->, →){otherMessage}"
-        generateParseError(line, position, message, line[position])
+def parseArrow(line, position):
+    if line[position] not in ARROW_START_CHARS:
+        generateParseError(line, position, f"arrow operator (->, →)", line[position])
     if line[position] == "→":
         return position + 1
     position += 1
@@ -112,15 +111,15 @@ def parseArrow(line, position, otherExpected=None):
     return position + 1
 
 
-def parseMacroDefinition(line, position):
-    sequence = []
+def parseTriggers(line, position):
+    triggers = []
     while True:
         position = eatWhitespace(line, position)
         subMacro, position = parseSubMacro(line, position)
-        sequence.append(subMacro)
+        triggers.append(subMacro)
         position = eatWhitespace(line, position)
-        if line[position] != "+":
-            return validateMacroSequenceAndGetMacro(sequence), position
+        if position == len(line) or line[position] != "+":
+            return triggers, position
         position += 1
 
 
@@ -128,11 +127,9 @@ def parseSubMacro(line, position):
     nextChar = line[position]
     if nextChar == "(":
         return parseChord(line, position)
-    if nextChar.isdigit() or basePitchRegex.match(nextChar):
+    if nextChar.isdigit() or BASE_PITCH_REGEX.match(nextChar):
         return parseNote(line, position)
-    if nextChar == "*":
-        return parseArgumentDefinition(line, position)
-    generateParseError(line, position, "chord, note, or argument definition", nextChar)
+    generateParseError(line, position, "note or chord", nextChar)
 
 
 def parseChord(line, position):
@@ -151,7 +148,7 @@ def parseChord(line, position):
             position += 1
             chord.sort(key=lambda macroNote: macroNote.getNote())
             matchPredicate = "True"
-            if line[position] == "{":
+            if position < len(line) and line[position] == "{":
                 matchPredicate, position = getMatchPredicate(line, position)
             return MacroChord(tuple(chord), matchPredicate), position
         position += 1
@@ -162,7 +159,7 @@ def inMidiRange(note):
 
 
 def parseNote(line, position):
-    if not line[position].isdigit() and not basePitchRegex.match(line[position]):
+    if not line[position].isdigit() and not BASE_PITCH_REGEX.match(line[position]):
         generateParseError(line, position, "note", line[position])
     startPosition = position
     if line[position].isdigit():
@@ -172,26 +169,26 @@ def parseNote(line, position):
     if not inMidiRange(note):
         generateInvalidMIDIError(line, startPosition, note)
     matchPredicate = "True"
-    if line[position] == "{":
+    if position < len(line) and line[position] == "{":
         matchPredicate, position = getMatchPredicate(line, position)
     return MacroNote(note, matchPredicate), position
 
 
 def parseASPNNote(line, position):
-    if not basePitchRegex.match(line[position]):
+    if not BASE_PITCH_REGEX.match(line[position]):
         generateParseError(line, position, "ASPN note", line[position])
     offset = 0
     basePitch = str.upper(line[position])
     position += 1
     if (
-        line[position] not in modifiers
+        line[position] not in MODIFIERS
         and line[position] != "-"
         and not line[position].isdigit()
     ):
         generateParseError(
-            line, position, f"pitch modifiers ({modifiers}) or octave", line[position]
+            line, position, f"pitch modifiers ({MODIFIERS}) or octave", line[position]
         )
-    if line[position] in modifiers:
+    if line[position] in MODIFIERS:
         offset, position = parseASPNModifiers(line, position)
     octave, position = parseASPNOctave(line, position)
     return aspn.aspnOctaveBasePitchOffsetToMIDI(octave, basePitch, offset), position
@@ -207,9 +204,9 @@ def parseASPNOctave(line, position):
 
 
 def parseASPNModifiers(line, position):
-    if line[position] not in modifiers:
+    if line[position] not in MODIFIERS:
         generateParseError(
-            line, position, f"pitch modifiers ({modifiers})", line[position]
+            line, position, f"pitch modifiers ({MODIFIERS})", line[position]
         )
     offset = 0
     while True:
@@ -321,7 +318,7 @@ def parsePositiveInteger(line, position):
     if not line[position].isdigit():
         generateParseError(line, position, "positive number", line[position])
     startPosition = position
-    while line[position].isdigit():
+    while position < len(line) and line[position].isdigit():
         position += 1
     return int(line[startPosition:position]), position
 
@@ -435,8 +432,8 @@ def parseFStringArgumentFormat(line, position):
         if escaping and char == "%":
             addToStringBuilder(i)
             currentStringStart = i + 1
-        elif escaping and char in argumentFormatShorthands:
-            macroArgumentFormat = argumentFormatShorthandToMAF[char]
+        elif escaping and char in ARGUMENT_FORMAT_SHORTHANDS:
+            macroArgumentFormat = ARGUMENT_FORMAT_SHORTHANDS_TO_AF[char]
             if i - 1 > currentStringStart:
                 addToStringBuilder(i - 1)
                 addStringBuilderToArgumentFormat()

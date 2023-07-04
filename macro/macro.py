@@ -11,5 +11,5 @@ class Macro:
 
     def __str__(self):
         return (
-            f'{"+".join(str(t) for t in self.triggers)}+{str(self.argumentDefinition)}'
+            f'{"+".join(str(t) for t in self.triggers)} {str(self.argumentDefinition)}'
         )

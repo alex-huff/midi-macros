@@ -1,5 +1,5 @@
 import time
-from threading import Lock
+from threading import RLock
 from rtmidi.midiutil import open_midiinput
 from rtmidi._rtmidi import (
     InvalidPortError,
@@ -8,10 +8,11 @@ from rtmidi._rtmidi import (
 )
 from aspn import aspn
 from log.mm_logging import logInfo, exceptionStr
+from macro.matching import numNotesInTrigger, testTriggerWithPlayedNotes
 from parser.parser import ParseError, parseMacroFile
 from listener.played_note import PlayedNote
 from midi.constants import *
-from config.mm_config import MACRO_FILE, MIDI_INPUT
+from config.mm_config import MACRO_FILE, MIDI_INPUT, TOGGLE_TRIGGER
 
 
 class ListenerException(Exception):
@@ -23,17 +24,26 @@ class MidiListener:
     def __init__(self, profileName, config):
         self.profileName = profileName
         self.config = config
+        self.listenerLock = RLock()
         self.pressed = []
-        self.pedalDown = False
         self.queuedReleases = set()
         self.lastChangeWasAdd = False
-        self.enabled = True
+        self.pedalDown = False
         self.virtualPedalDown = False
-        self.listenerLock = Lock()
+        self.enabled = True
+        self.toggleTrigger = self.config.get(TOGGLE_TRIGGER)
+        self.toggleTriggerLength = (
+            numNotesInTrigger(self.toggleTrigger) if self.toggleTrigger else None
+        )
 
     def toggleEnabled(self):
-        self.enabled = not self.enabled
-        return self.enabled
+        with self.listenerLock:
+            self.enabled = not self.enabled
+            return self.enabled
+
+    def setEnabled(self, enabled):
+        with self.listenerLock:
+            self.enabled = enabled
 
     def toggleVirtualPedalDown(self):
         with self.listenerLock:
@@ -41,15 +51,11 @@ class MidiListener:
             self.handleUpdate(None, virtualSustainToggleUpdate=True)
             return self.virtualPedalDown
 
-    def setEnabled(self, enabled):
-        self.enabled = enabled
-
     def setVirtualPedalDown(self, down):
         with self.listenerLock:
             if self.virtualPedalDown == down:
                 return
-            self.virtualPedalDown = down
-            self.handleUpdate(None, virtualSustainToggleUpdate=True)
+            self.toggleVirtualPedalDown()
 
     def __call__(self, event, data=None):
         with self.listenerLock:
@@ -113,6 +119,15 @@ class MidiListener:
         self.lastChangeWasAdd = wasPress
 
     def executeMacros(self):
+        if (
+            self.toggleTrigger
+            and self.toggleTriggerLength == len(self.pressed)
+            and testTriggerWithPlayedNotes(
+                self.pressed, self.toggleTrigger, self.toggleTriggerLength
+            )
+        ):
+            self.toggleEnabled()
+            return
         if not self.enabled:
             return
         logInfo(

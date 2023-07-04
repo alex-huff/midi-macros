@@ -5,6 +5,7 @@ import argparse
 import stat
 from rtmidi import MidiIn
 from appdirs import user_config_dir
+from parser.parser import ParseBuffer, ParseError, eatWhitespace, parseTriggers
 from listener.midi_listener import ListenerException, MidiListener
 from ipc.protocol import (
     IPCIOError,
@@ -19,6 +20,7 @@ from config.mm_config import (
     SOCKET_PATH,
     PROFILES,
     MACRO_FILE,
+    TOGGLE_TRIGGER,
     loadConfig,
     ConfigException,
 )
@@ -66,9 +68,10 @@ class MidiMacros:
         try:
             self.config = loadConfig(self.configFilePath)
             self.fixMacroFilePaths()
+            self.parseControlTriggers()
             return True
         except ConfigException as configException:
-            logError(configException.message)
+            logError(configException.message, configException.profile)
         except (FileNotFoundError, IsADirectoryError):
             logError(f"config file path: {self.configFilePath}, was not a valid file")
         except PermissionError:
@@ -90,6 +93,26 @@ class MidiMacros:
                 profileConfig[MACRO_FILE] = os.path.join(
                     self.macroDirPath, givenMacroFilePath
                 )
+
+    def parseControlTrigger(self, profileName, profileConfig, triggerType):
+        try:
+            parseBuffer = ParseBuffer(profileConfig[triggerType])
+            trigger, position = parseTriggers(parseBuffer, 0)
+            position = eatWhitespace(parseBuffer, position)
+            if position != len(parseBuffer):
+                raise ConfigException(
+                    f"extraneous characters in {triggerType}: {parseBuffer[position:]}"
+                )
+            profileConfig[triggerType] = trigger
+        except ParseError as parseError:
+            raise ConfigException(
+                f"failed to parse {triggerType}: {parseError.message}", profileName
+            )
+
+    def parseControlTriggers(self):
+        for profileName, profileConfig in self.config[PROFILES].items():
+            if TOGGLE_TRIGGER in profileConfig:
+                self.parseControlTrigger(profileName, profileConfig, TOGGLE_TRIGGER)
 
     def stopListeners(self):
         for listener in self.listeners.values():
