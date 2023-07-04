@@ -22,8 +22,7 @@ class MacroTree:
     def addMacroToTree(self, macro, script):
         currentNode = self.root
         notesTillScriptExecution = list(
-            accumulate(numNotesInTrigger(t)
-                       for t in reversed(macro.getTriggers()))
+            accumulate(numNotesInTrigger(t) for t in reversed(macro.getTriggers()))
         )
         notesTillScriptExecution.reverse()
         minArguments = (
@@ -51,8 +50,7 @@ class MacroTree:
         try:
             subprocess.Popen(script, shell=True)
         except Exception as exception:
-            logError(
-                f"failed to run script, {exceptionStr(exception)}")
+            logError(f"failed to run script, {exceptionStr(exception)}")
 
     def executeNoArgScripts(self, currentNode):
         for script, argumentDefinition in currentNode.getScripts():
@@ -60,8 +58,7 @@ class MacroTree:
                 if not argumentDefinition.numArgumentsAllowed(0):
                     continue
                 if argumentDefinition.getReplaceString():
-                    script = script.replace(
-                        argumentDefinition.getReplaceString(), "")
+                    script = script.replace(argumentDefinition.getReplaceString(), "")
             self.executeScript(script)
 
     def executeScripts(self, currentNode, playedNotes, position):
@@ -81,8 +78,7 @@ class MacroTree:
             else:
                 argumentGenerator = (
                     "".join(
-                        af if isinstance(
-                            af, str) else af.toMacroArgument(playedNote)
+                        af if isinstance(af, str) else af.toMacroArgument(playedNote)
                         for af in argumentFormat
                     )
                     for playedNote in islice(playedNotes, position, None)

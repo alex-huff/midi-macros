@@ -1,6 +1,7 @@
 import subprocess
 import time
-from threading import RLock
+from threading import RLock, Thread, Event
+from queue import Queue, Empty
 from rtmidi.midiutil import open_midiinput
 from rtmidi._rtmidi import (
     InvalidPortError,
@@ -19,6 +20,7 @@ from config.mm_config import (
     TOGGLE_TRIGGER,
     TOGGLE_CALLBACK,
     VIRTUAL_SUSTAIN_CALLBACK,
+    DEBOUNCE_CALLBACKS,
 )
 
 
@@ -44,30 +46,35 @@ class MidiListener:
         )
         self.toggleCallback = self.config.get(TOGGLE_CALLBACK)
         self.virtualSustainCallback = self.config.get(VIRTUAL_SUSTAIN_CALLBACK)
-        self.currentCallbackProcess = None
+        self.callbackQueue = Queue()
+        self.callbackThread = Thread(target=self.executeCallbacksForever, daemon=True)
+        self.terminateEvent = Event()
+
+    def executeCallbacksForever(self):
+        while not self.terminateEvent.wait(timeout=1 / 50):
+            foundCallback = False
+            try:
+                callback, message = self.callbackQueue.get_nowait()
+                self.callbackQueue.task_done()
+                foundCallback = True
+                while self.config[DEBOUNCE_CALLBACKS]:
+                    callback, message = self.callbackQueue.get_nowait()
+                    self.callbackQueue.task_done()
+            except Empty:
+                pass
+            if foundCallback:
+                self.executeCallback(callback, message)
 
     def executeCallback(self, callback, message):
         try:
-            if self.currentCallbackProcess:
-                self.currentCallbackProcess.terminate()
-        except Exception as exception:
-            logError(
-                f"failed to terminate previous callback, {exceptionStr(exception)}",
-                self.profileName,
-            )
-        self.currentCallbackProcess = None
-        try:
-            process = subprocess.Popen(
+            subprocess.Popen(
                 callback,
                 stdin=subprocess.PIPE,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 text=True,
                 shell=True,
-            )
-            self.currentCallbackProcess = process
-            process.stdin.write(message)
-            process.stdin.close()
+            ).communicate(message)
         except Exception as exception:
             logError(
                 f"failed to run callback, {exceptionStr(exception)}",
@@ -78,8 +85,11 @@ class MidiListener:
         with self.listenerLock:
             self.enabled = not self.enabled
             if self.toggleCallback:
-                self.executeCallback(
-                    self.toggleCallback, f"{'enabled' if self.enabled else 'disabled'}"
+                self.callbackQueue.put(
+                    (
+                        self.toggleCallback,
+                        f"{'enabled' if self.enabled else 'disabled'}",
+                    )
                 )
             return self.enabled
 
@@ -94,9 +104,11 @@ class MidiListener:
             self.virtualPedalDown = not self.virtualPedalDown
             self.handleUpdate(None, virtualSustainToggleUpdate=True)
             if self.virtualSustainCallback:
-                self.executeCallback(
-                    self.virtualSustainCallback,
-                    f"sustain {'enabled' if self.virtualPedalDown else 'disabled'}",
+                self.callbackQueue.put(
+                    (
+                        self.virtualSustainCallback,
+                        f"sustain {'enabled' if self.virtualPedalDown else 'disabled'}",
+                    )
                 )
             return self.virtualPedalDown
 
@@ -188,6 +200,7 @@ class MidiListener:
     def run(self):
         self.initializeMacros()
         self.openMIDIPort()
+        self.callbackThread.start()
 
     def initializeMacros(self):
         macroFilePath = self.config[MACRO_FILE]
@@ -228,3 +241,6 @@ class MidiListener:
         # rtmidi internally will interrupt and join with callback thread
         self.midiin.close_port()
         del self.midiin
+        self.callbackQueue.join()
+        self.terminateEvent.set()
+        self.callbackThread.join()

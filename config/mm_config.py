@@ -15,6 +15,7 @@ MACRO_FILE = "macro-file"
 TOGGLE_TRIGGER = "toggle-trigger"
 TOGGLE_CALLBACK = "toggle-callback"
 VIRTUAL_SUSTAIN_CALLBACK = "virtual-sustain-callback"
+DEBOUNCE_CALLBACKS = "debounce-callbacks"
 
 PROFILES = "profiles"
 
@@ -26,9 +27,10 @@ PROFILE_SETTINGS = {
     TOGGLE_TRIGGER: str,
     TOGGLE_CALLBACK: str,
     VIRTUAL_SUSTAIN_CALLBACK: str,
+    DEBOUNCE_CALLBACKS: bool,
 }
 REQUIRED_SETTINGS = set()
-REQUIRED_PROFILE_SETTINGS = set((MIDI_INPUT, MACRO_FILE))
+REQUIRED_PROFILE_SETTINGS = set((ENABLED, MIDI_INPUT, MACRO_FILE, DEBOUNCE_CALLBACKS))
 
 
 def getDefaultConfig():
@@ -36,7 +38,7 @@ def getDefaultConfig():
 
 
 def getDefaultProfileConfig():
-    return {ENABLED: True}
+    return {ENABLED: True, DEBOUNCE_CALLBACKS: True}
 
 
 def verifySettingType(key, value, profile=None):
