@@ -113,13 +113,16 @@ class MidiListener:
                 return
             self.toggleVirtualPedalDown()
 
+    def booleanCallbackMessage(self, enabled):
+        return f"{'enabled' if enabled else 'disabled'}"
+
     def queueToggleCallback(self):
         if self.toggleCallback:
             self.callbackQueue.put(
                 (
                     TOGGLE_CALLBACK,
                     self.toggleCallback,
-                    f"{self.profileName} {'enabled' if self.enabled else 'disabled'}",
+                    self.booleanCallbackMessage(self.enabled)
                 )
             )
 
@@ -129,7 +132,7 @@ class MidiListener:
                 (
                     VIRTUAL_SUSTAIN_CALLBACK,
                     self.virtualSustainCallback,
-                    f"sustain {'enabled' if self.virtualPedalDown else 'disabled'}",
+                    self.booleanCallbackMessage(self.virtualPedalDown),
                 )
             )
 
