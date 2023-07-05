@@ -21,6 +21,7 @@ from config.mm_config import (
     TOGGLE_CALLBACK,
     VIRTUAL_SUSTAIN_CALLBACK,
     DEBOUNCE_CALLBACKS,
+    CALLBACK_TYPES
 )
 
 
@@ -52,18 +53,24 @@ class MidiListener:
 
     def executeCallbacksForever(self):
         while not self.terminateEvent.wait(timeout=1 / 50):
-            foundCallback = False
+            callbacks = []
             try:
-                callback, message = self.callbackQueue.get_nowait()
-                self.callbackQueue.task_done()
-                foundCallback = True
-                while self.config[DEBOUNCE_CALLBACKS]:
-                    callback, message = self.callbackQueue.get_nowait()
-                    self.callbackQueue.task_done()
+                while True:
+                    callbacks.append(self.callbackQueue.get_nowait())
             except Empty:
                 pass
-            if foundCallback:
-                self.executeCallback(callback, message)
+            if len(callbacks) == 0:
+                continue
+            if self.config[DEBOUNCE_CALLBACKS]:
+                for callbackType in CALLBACK_TYPES:
+                    callbacksOfType = [callback for callback in callbacks if callback[0] == callbackType]
+                    if len(callbacksOfType) > 0:
+                        self.executeCallback(*callbacksOfType[-1][1:])
+            else:
+                for callback in callbacks:
+                    self.executeCallback(*callback[1:])
+            for _ in range(len(callbacks)):
+                self.callbackQueue.task_done()
 
     def executeCallback(self, callback, message):
         try:
@@ -84,13 +91,7 @@ class MidiListener:
     def toggleEnabled(self):
         with self.listenerLock:
             self.enabled = not self.enabled
-            if self.toggleCallback:
-                self.callbackQueue.put(
-                    (
-                        self.toggleCallback,
-                        f"{'enabled' if self.enabled else 'disabled'}",
-                    )
-                )
+            self.queueToggleCallback()
             return self.enabled
 
     def setEnabled(self, enabled):
@@ -103,13 +104,7 @@ class MidiListener:
         with self.listenerLock:
             self.virtualPedalDown = not self.virtualPedalDown
             self.handleUpdate(None, virtualSustainToggleUpdate=True)
-            if self.virtualSustainCallback:
-                self.callbackQueue.put(
-                    (
-                        self.virtualSustainCallback,
-                        f"sustain {'enabled' if self.virtualPedalDown else 'disabled'}",
-                    )
-                )
+            self.queueVirtualSustainCallback()
             return self.virtualPedalDown
 
     def setVirtualPedalDown(self, down):
@@ -117,6 +112,26 @@ class MidiListener:
             if self.virtualPedalDown == down:
                 return
             self.toggleVirtualPedalDown()
+
+    def queueToggleCallback(self):
+        if self.toggleCallback:
+            self.callbackQueue.put(
+                (
+                    TOGGLE_CALLBACK,
+                    self.toggleCallback,
+                    f"{self.profileName} {'enabled' if self.enabled else 'disabled'}",
+                )
+            )
+
+    def queueVirtualSustainCallback(self):
+        if self.virtualSustainCallback:
+            self.callbackQueue.put(
+                (
+                    VIRTUAL_SUSTAIN_CALLBACK,
+                    self.virtualSustainCallback,
+                    f"sustain {'enabled' if self.virtualPedalDown else 'disabled'}",
+                )
+            )
 
     def __call__(self, event, data=None):
         with self.listenerLock:
@@ -199,6 +214,8 @@ class MidiListener:
 
     def run(self):
         self.initializeMacros()
+        self.queueToggleCallback()
+        self.queueVirtualSustainCallback()
         self.openMIDIPort()
         self.callbackThread.start()
 

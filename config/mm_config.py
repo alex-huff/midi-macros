@@ -17,6 +17,8 @@ TOGGLE_CALLBACK = "toggle-callback"
 VIRTUAL_SUSTAIN_CALLBACK = "virtual-sustain-callback"
 DEBOUNCE_CALLBACKS = "debounce-callbacks"
 
+CALLBACK_TYPES = set((TOGGLE_CALLBACK, VIRTUAL_SUSTAIN_CALLBACK))
+
 PROFILES = "profiles"
 
 SETTINGS = {SOCKET_PATH: str}
