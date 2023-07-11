@@ -33,12 +33,8 @@ def handleMessage(message, midiMacros):
 def handleReloadMessage(message, position, midiMacros):
     if len(message) > position:
         return failResponse("reload message takes no arguments")
-    if not midiMacros.reloadConfig():
-        return failResponse("failed to reload configuration, check logs for details")
-    logInfo("stopping listeners")
-    midiMacros.stopListeners()
-    logInfo("restarting listeners")
-    midiMacros.createAndRunListeners()
+    if not midiMacros.reload():
+        return failResponse("failed to reload config. check logs for details")
     return successResponse("successfully reloaded all profiles")
 
 

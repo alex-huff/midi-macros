@@ -1,7 +1,5 @@
-import subprocess
 import time
-from threading import RLock, Thread, Event
-from queue import Queue, Empty
+from threading import RLock
 from rtmidi.midiutil import open_midiinput
 from rtmidi._rtmidi import (
     InvalidPortError,
@@ -9,19 +7,18 @@ from rtmidi._rtmidi import (
     NoDevicesError,
 )
 from aspn import aspn
-from log.mm_logging import logError, logInfo, exceptionStr
+from log.mm_logging import logInfo, exceptionStr
 from macro.matching import numNotesInTrigger, testTriggerWithPlayedNotes
 from parser.parser import ParseError, parseMacroFile
 from listener.played_note import PlayedNote
 from midi.constants import *
+from callback.callback import Callback
 from config.mm_config import (
     MACRO_FILE,
     MIDI_INPUT,
     TOGGLE_TRIGGER,
     TOGGLE_CALLBACK,
     VIRTUAL_SUSTAIN_CALLBACK,
-    DEBOUNCE_CALLBACKS,
-    CALLBACK_TYPES
 )
 
 
@@ -31,9 +28,10 @@ class ListenerException(Exception):
 
 
 class MidiListener:
-    def __init__(self, profileName, config):
+    def __init__(self, profileName, config, callbackQueue):
         self.profileName = profileName
         self.config = config
+        self.callbackQueue = callbackQueue
         self.listenerLock = RLock()
         self.pressed = []
         self.queuedReleases = set()
@@ -47,46 +45,7 @@ class MidiListener:
         )
         self.toggleCallback = self.config.get(TOGGLE_CALLBACK)
         self.virtualSustainCallback = self.config.get(VIRTUAL_SUSTAIN_CALLBACK)
-        self.callbackQueue = Queue()
-        self.callbackThread = Thread(target=self.executeCallbacksForever, daemon=True)
-        self.terminateEvent = Event()
 
-    def executeCallbacksForever(self):
-        while not self.terminateEvent.wait(timeout=1 / 50):
-            callbacks = []
-            try:
-                while True:
-                    callbacks.append(self.callbackQueue.get_nowait())
-            except Empty:
-                pass
-            if len(callbacks) == 0:
-                continue
-            if self.config[DEBOUNCE_CALLBACKS]:
-                for callbackType in CALLBACK_TYPES:
-                    callbacksOfType = [callback for callback in callbacks if callback[0] == callbackType]
-                    if len(callbacksOfType) > 0:
-                        self.executeCallback(*callbacksOfType[-1][1:])
-            else:
-                for callback in callbacks:
-                    self.executeCallback(*callback[1:])
-            for _ in range(len(callbacks)):
-                self.callbackQueue.task_done()
-
-    def executeCallback(self, callback, message):
-        try:
-            subprocess.Popen(
-                callback,
-                stdin=subprocess.PIPE,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                text=True,
-                shell=True,
-            ).communicate(message)
-        except Exception as exception:
-            logError(
-                f"failed to run callback, {exceptionStr(exception)}",
-                self.profileName,
-            )
 
     def toggleEnabled(self):
         with self.listenerLock:
@@ -119,7 +78,8 @@ class MidiListener:
     def queueToggleCallback(self):
         if self.toggleCallback:
             self.callbackQueue.put(
-                (
+                Callback(
+                    self.profileName,
                     TOGGLE_CALLBACK,
                     self.toggleCallback,
                     self.booleanCallbackMessage(self.enabled)
@@ -129,7 +89,8 @@ class MidiListener:
     def queueVirtualSustainCallback(self):
         if self.virtualSustainCallback:
             self.callbackQueue.put(
-                (
+                Callback(
+                    self.profileName,
                     VIRTUAL_SUSTAIN_CALLBACK,
                     self.virtualSustainCallback,
                     self.booleanCallbackMessage(self.virtualPedalDown),
@@ -159,6 +120,7 @@ class MidiListener:
                 self.handleSustainRelease()
             return
         eventData, _ = event
+        print(eventData, _)
         if len(eventData) < 3:
             return
         (status, data_1, data_2) = eventData
@@ -170,7 +132,7 @@ class MidiListener:
             return
         wasSustaining = self.pedalDown or self.virtualPedalDown
         if status == CONTROL_CHANGE_STATUS:
-            self.pedalDown = data_2 > 0
+            self.pedalDown = data_2 >= 64
             isSustaining = self.pedalDown or self.virtualPedalDown
             if wasSustaining and not isSustaining:
                 self.handleSustainRelease()
@@ -220,7 +182,6 @@ class MidiListener:
         self.queueToggleCallback()
         self.queueVirtualSustainCallback()
         self.openMIDIPort()
-        self.callbackThread.start()
 
     def initializeMacros(self):
         macroFilePath = self.config[MACRO_FILE]
@@ -261,6 +222,3 @@ class MidiListener:
         # rtmidi internally will interrupt and join with callback thread
         self.midiin.close_port()
         del self.midiin
-        self.callbackQueue.join()
-        self.terminateEvent.set()
-        self.callbackThread.join()

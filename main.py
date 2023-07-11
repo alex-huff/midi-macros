@@ -3,6 +3,9 @@ import socket
 import sys
 import argparse
 import stat
+import subprocess
+from queue import Queue, Empty
+from threading import Thread, Event
 from rtmidi import MidiIn
 from appdirs import user_config_dir
 from parser.parser import ParseBuffer, ParseError, eatWhitespace, parseTriggers
@@ -21,6 +24,8 @@ from config.mm_config import (
     PROFILES,
     MACRO_FILE,
     TOGGLE_TRIGGER,
+    DEBOUNCE_CALLBACKS,
+    CALLBACK_TYPES,
     loadConfig,
     ConfigException,
 )
@@ -38,7 +43,7 @@ def verifyDirectoryExists(path, name):
 
 class ListMidiDevicesAction(argparse.Action):
     def __call__(self, parser, namespace, values, option_string=None):
-        print("\n".join(rtmidi.MidiIn().get_ports()))
+        print("\n".join(MidiIn().get_ports()))
         parser.exit()
 
 
@@ -58,7 +63,73 @@ class MidiMacros:
                 )
                 open(self.configFilePath, "a").close()
         self.initConfig()
+        self.shutdownEvent = Event()
+        self.callbackQueue = Queue()
+        self.initialize()
+
+    def initCallbackThread(self):
+        self.shutdownEvent.clear()
+        self.callbackThread = Thread(target=self.executeCallbacksForever, daemon=True)
+        self.callbackThread.start()
+
+    def shutdownCallbackThread(self):
+        self.callbackQueue.join()
+        self.shutdownEvent.set()
+        self.callbackThread.join()
+
+    def executeCallbacksForever(self):
+        while not self.shutdownEvent.wait(1 / 50):
+            callbacks = []
+            try:
+                while True:
+                    callbacks.append(self.callbackQueue.get_nowait())
+            except Empty:
+                pass
+            if not callbacks:
+                continue
+            for profileName, profileConfig in self.config[PROFILES].items():
+                callbacksForProfile = [callback for callback in callbacks if callback.getProfileName() == profileName]
+                if profileConfig[DEBOUNCE_CALLBACKS]:
+                    for callbackType in CALLBACK_TYPES:
+                        callbacksOfType = [callback for callback in callbacksForProfile if callback.getCallbackType() == callbackType]
+                        if len(callbacksOfType) > 0:
+                            self.executeCallback(callbacksOfType[-1])
+                else:
+                    for callback in callbacks:
+                        self.executeCallback(callback)
+            for _ in range(len(callbacks)):
+                self.callbackQueue.task_done()
+
+    def executeCallback(self, callback):
+        try:
+            subprocess.Popen(
+                callback.getScript(),
+                stdin=subprocess.PIPE,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                text=True,
+                shell=True,
+                start_new_session=True # so that KeyboardInterrupt does not SIGINT child process
+            ).communicate(callback.getMessage())
+        except Exception as exception:
+            logError(
+                f"failed to run callback, {exceptionStr(exception)}",
+                callback.getProfileName(),
+            )
+
+    def initialize(self):
+        self.initCallbackThread()
         self.createAndRunListeners()
+
+    def shutdown(self):
+        self.stopListeners()
+        self.shutdownCallbackThread()
+
+    def reload(self):
+        self.shutdown()
+        result = self.reloadConfig()
+        self.initialize()
+        return result
 
     def initConfig(self):
         if not self.reloadConfig():
@@ -66,9 +137,10 @@ class MidiMacros:
 
     def reloadConfig(self):
         try:
-            self.config = loadConfig(self.configFilePath)
-            self.fixMacroFilePaths()
-            self.parseControlTriggers()
+            tempConfig = loadConfig(self.configFilePath)
+            self.fixMacroFilePaths(tempConfig)
+            self.parseControlTriggers(tempConfig)
+            self.config = tempConfig
             return True
         except ConfigException as configException:
             logError(configException.message, configException.profile)
@@ -84,8 +156,8 @@ class MidiMacros:
             )
         return False
 
-    def fixMacroFilePaths(self):
-        for profileConfig in self.config[PROFILES].values():
+    def fixMacroFilePaths(self, config):
+        for profileConfig in config[PROFILES].values():
             givenMacroFilePath = os.path.expanduser(profileConfig[MACRO_FILE])
             if os.path.isabs(givenMacroFilePath):
                 profileConfig[MACRO_FILE] = givenMacroFilePath
@@ -109,8 +181,8 @@ class MidiMacros:
                 f"failed to parse {triggerType}: {parseError.message}", profileName
             )
 
-    def parseControlTriggers(self):
-        for profileName, profileConfig in self.config[PROFILES].items():
+    def parseControlTriggers(self, config):
+        for profileName, profileConfig in config[PROFILES].items():
             if TOGGLE_TRIGGER in profileConfig:
                 self.parseControlTrigger(profileName, profileConfig, TOGGLE_TRIGGER)
 
@@ -124,7 +196,7 @@ class MidiMacros:
     def createAndRunListeners(self):
         self.listeners = {}
         for profileName, profileConfig in self.config[PROFILES].items():
-            listener = MidiListener(profileName, profileConfig)
+            listener = MidiListener(profileName, profileConfig, self.callbackQueue)
             self.listeners[profileName] = listener
             self.tryRunListener(profileName)
 
@@ -216,4 +288,5 @@ try:
 except KeyboardInterrupt:
     pass
 finally:
+    midiMacros.shutdown()
     midiMacros.unlinkExistingSocket()
