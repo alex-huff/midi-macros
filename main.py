@@ -6,6 +6,7 @@ import stat
 import subprocess
 from queue import Queue, Empty
 from threading import Thread, Event
+from collections import defaultdict
 from rtmidi import MidiIn
 from appdirs import user_config_dir
 from parser.parser import ParseBuffer, ParseError, eatWhitespace, parseTriggers
@@ -87,16 +88,17 @@ class MidiMacros:
                 pass
             if not callbacks:
                 continue
-            for profileName, profileConfig in self.config[PROFILES].items():
-                callbacksForProfile = [callback for callback in callbacks if callback.getProfileName() == profileName]
-                if profileConfig[DEBOUNCE_CALLBACKS]:
-                    for callbackType in CALLBACK_TYPES:
-                        callbacksOfType = [callback for callback in callbacksForProfile if callback.getCallbackType() == callbackType]
-                        if len(callbacksOfType) > 0:
-                            self.executeCallback(callbacksOfType[-1])
-                else:
-                    for callback in callbacks:
-                        self.executeCallback(callback)
+            callbackMap = defaultdict(lambda: defaultdict(list))
+            for callback in callbacks:
+                callbackMap[callback.getProfileName()][callback.getCallbackType()].append(callback)
+            for profileName, profileCallbacks in callbackMap.items():
+                shouldDebounce = self.config[PROFILES][profileName][DEBOUNCE_CALLBACKS]
+                for callbacksOfType in profileCallbacks.values():
+                    if shouldDebounce:
+                        self.executeCallback(callbacksOfType[-1])
+                    else:
+                        for callback in callbacksOfType:
+                            self.executeCallback(callback)
             for _ in range(len(callbacks)):
                 self.callbackQueue.task_done()
 
