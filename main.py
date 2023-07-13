@@ -26,7 +26,6 @@ from config.mm_config import (
     MACRO_FILE,
     TOGGLE_TRIGGER,
     DEBOUNCE_CALLBACKS,
-    CALLBACK_TYPES,
     loadConfig,
     ConfigException,
 )
@@ -64,32 +63,21 @@ class MidiMacros:
                 )
                 open(self.configFilePath, "a").close()
         self.initConfig()
-        self.shutdownEvent = Event()
         self.callbackQueue = Queue()
-        self.initialize()
-
-    def initCallbackThread(self):
-        self.shutdownEvent.clear()
         self.callbackThread = Thread(target=self.executeCallbacksForever, daemon=True)
         self.callbackThread.start()
-
-    def shutdownCallbackThread(self):
-        self.callbackQueue.join()
-        self.shutdownEvent.set()
-        self.callbackThread.join()
+        self.initialize()
 
     def executeCallbacksForever(self):
-        while not self.shutdownEvent.wait(1 / 50):
-            callbacks = []
+        while True:
+            callbacks = [self.callbackQueue.get()]
             try:
                 while True:
                     callbacks.append(self.callbackQueue.get_nowait())
             except Empty:
                 pass
-            if not callbacks:
-                continue
-            profileConfigs = self.config[PROFILES]
             debouncedCallbacks = defaultdict(dict)
+            profileConfigs = self.config[PROFILES]
             for callback in callbacks:
                 profileName = callback.getProfileName()
                 if profileConfigs[profileName][DEBOUNCE_CALLBACKS]:
@@ -120,12 +108,11 @@ class MidiMacros:
             )
 
     def initialize(self):
-        self.initCallbackThread()
         self.createAndRunListeners()
 
     def shutdown(self):
         self.stopListeners()
-        self.shutdownCallbackThread()
+        self.callbackQueue.join()
 
     def reload(self):
         self.shutdown()
