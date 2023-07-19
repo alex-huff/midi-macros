@@ -102,13 +102,10 @@ class MidiListener:
                 self.queueSubprofileCallback()
             return self.subprofileHolder.getCurrent()
 
-    def hasSubprofile(self, subprofile):
-        return self.subprofileHolder and self.subprofileHolder.has(subprofile)
-
     def getSubprofiles(self):
-        if self.subprofileHolder:
-            return self.subprofileHolder.getNames()
-        return ()
+        if not self.subprofileHolder:
+            return ()
+        return self.subprofileHolder.getNames()
 
     def booleanCallbackMessage(self, enabled):
         return f"{'enabled' if enabled else 'disabled'}"

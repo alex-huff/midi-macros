@@ -26,11 +26,7 @@ def getIPCSocketPath():
 
 def sendMessage(ipcSocket, message):
     messageLength = len(message)
-    if messageLength > 255:
-        raise MessageFormatException(
-            f"message was too long: {messageLength} (>255) strings"
-        )
-    sendUnsignedInt(ipcSocket, messageLength)
+    sendVarInt(ipcSocket, messageLength)
     for string in message:
         sendString(ipcSocket, string)
 
@@ -38,41 +34,54 @@ def sendMessage(ipcSocket, message):
 def sendResponse(ipcSocket, response):
     success, string = response
     successInt = 0x1 if success else 0x0
-    sendUnsignedInt(ipcSocket, successInt)
+    sendVarInt(ipcSocket, successInt)
     sendString(ipcSocket, string)
 
 
 def sendString(ipcSocket, string):
     stringBytes = string.encode()
     stringBytesLen = len(stringBytes)
-    if stringBytesLen > 255:
-        raise MessageFormatException(
-            f"encoded string: {string}, was too big: {stringBytesLen} (>255) bytes"
-        )
-    sendUnsignedInt(ipcSocket, stringBytesLen)
+    sendVarInt(ipcSocket, stringBytesLen)
     sendall(ipcSocket, stringBytes)
 
 
-def sendUnsignedInt(ipcSocket, uInt, size=1):
-    sendall(ipcSocket, uInt.to_bytes(size))
+def sendVarInt(ipcSocket, uInt):
+    varIntBytes = bytearray()
+    continuationBit = 0x80
+    while continuationBit:
+        lowSeven = uInt & 0x7F
+        uInt >>= 7
+        continuationBit = 0x80 if uInt else 0
+        varIntByte = continuationBit | lowSeven
+        varIntBytes.append(varIntByte)
+    sendall(ipcSocket, varIntBytes)
 
 
 def readMessage(ipcSocket):
-    numStrings = readUnsignedInt(ipcSocket)
+    numStrings = readVarInt(ipcSocket)
     return [readString(ipcSocket) for _ in range(numStrings)]
 
 
 def readResponse(ipcSocket):
-    return (bool(readUnsignedInt(ipcSocket)), readString(ipcSocket))
+    return (bool(readVarInt(ipcSocket)), readString(ipcSocket))
 
 
 def readString(ipcSocket):
-    stringSize = readUnsignedInt(ipcSocket)
+    stringSize = readVarInt(ipcSocket)
     return recvall(ipcSocket, stringSize).decode()
 
 
-def readUnsignedInt(ipcSocket, size=1):
-    return int.from_bytes(recvall(ipcSocket, size))
+def readVarInt(ipcSocket):
+    continuationBit = 0x80
+    varInt = 0
+    bytesProcessed = 0
+    while continuationBit:
+        byte = recvall(ipcSocket, 1)[0]
+        continuationBit = byte & 0x80
+        byte = byte & 0x7F
+        varInt |= byte << (7 * bytesProcessed)
+        bytesProcessed += 1
+    return varInt
 
 
 def sendall(ipcSocket, toSend):
