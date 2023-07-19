@@ -45,6 +45,7 @@ class MidiListener:
         self.pedalDown = False
         self.virtualPedalDown = False
         self.enabled = True
+        self.portName = None
         self.enableTrigger = self.config.get(ENABLE_TRIGGER)
         self.enableTriggerLength = (
             numNotesInTrigger(self.enableTrigger) if self.enableTrigger else None
@@ -106,6 +107,16 @@ class MidiListener:
         if not self.subprofileHolder:
             return ()
         return self.subprofileHolder.getNames()
+
+    def getInfo(self):
+        with self.listenerLock:
+            return {
+                "enabled": self.enabled,
+                "midi-input": self.portName,
+                "sustain": self.pedalDown,
+                "virtual-sustain": self.virtualPedalDown,
+                "subprofiles": self.subprofileHolder.getInfo() if self.subprofileHolder else None,
+            }
 
     def booleanCallbackMessage(self, enabled):
         return f"{'enabled' if enabled else 'disabled'}"
@@ -243,7 +254,9 @@ class MidiListener:
 
     def openMIDIPort(self):
         try:
-            self.midiin, _ = open_midiinput(self.config[MIDI_INPUT], interactive=False)
+            self.midiin, self.portName = open_midiinput(
+                self.config[MIDI_INPUT], interactive=False
+            )
             self.midiin.set_callback(self)
         except InvalidPortError:
             raise ListenerException(f"invalid midi port: {self.config[MIDI_INPUT]}")

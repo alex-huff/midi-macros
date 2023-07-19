@@ -1,3 +1,5 @@
+import json
+
 TOGGLE = "toggle"
 ENABLE = "enable"
 DISABLE = "disable"
@@ -8,6 +10,7 @@ GET_LOADED_SUBPROFILES = "get-loaded-subprofiles"
 CYCLE_SUBPROFILES = "cycle-subprofiles"
 SET_SUBPROFILE = "set-subprofile"
 VIRTUAL_SUSTAIN = "virtual-sustain"
+GET_INFO = "get-info"
 
 
 def failResponse(string):
@@ -53,6 +56,7 @@ def handleProfileMessage(message, position, midiMacros):
         DISABLE,
         GET_LOADED_SUBPROFILES,
         CYCLE_SUBPROFILES,
+        GET_INFO,
     ):
         if len(message) > position:
             return failResponse(f"{messageType} takes no arguments")
@@ -78,6 +82,8 @@ def handleProfileMessage(message, position, midiMacros):
         return successResponse(f"active subprofile is now: {newSubprofile}")
     elif messageType == SET_SUBPROFILE:
         return handleSetSubprofile(message, position, midiListener)
+    elif messageType == GET_INFO:
+        return successResponse(json.dumps(midiListener.getInfo()))
     return failResponse(f"invalid message type: {messageType}")
 
 

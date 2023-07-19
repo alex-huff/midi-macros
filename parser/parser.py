@@ -2,6 +2,8 @@ import re
 import math
 from log.mm_logging import logInfo
 from aspn import aspn
+from parser.parse_buffer import ParseBuffer
+from parser.parse_error import ParseError
 from macro.macro_argument import *
 from macro.tree.macro_tree import MacroTree
 from macro.macro_note import MacroNote
@@ -9,27 +11,12 @@ from macro.macro_chord import MacroChord
 from macro.macro import Macro
 
 
-class ParseError(Exception):
-    def __init__(self, message):
-        self.message = message
-
-
-class ParseBuffer(str):
-    def __getitem__(self, key):
-        try:
-            return ParseBuffer(str.__getitem__(self, key))
-        except IndexError:
-            raise ParseError(
-                f'unexpectedly reached end of line.\n{self}\n{" " * len(self) + "^"}'
-            )
-
-
 LINE_CONTINUATION_REGEX = re.compile(r"\\\s*\n")
 ARROW_START_CHARS = "→-"
 BASE_PITCH_REGEX = re.compile(r"[A-Ga-g]")
 MODIFIERS = "#♯b♭𝄪𝄫"
 ARGUMENT_FORMAT_SHORTHANDS = "mpaAvt"
-ARGUMENT_FORMAT_SHORTHANDS_TO_AF = {
+ARGUMENT_FORMAT_SHORTHANDS_TO_ARGUMENT_FORMAT = {
     "m": FORMAT_MIDI,
     "p": FORMAT_PIANO,
     "a": FORMAT_ASPN,
@@ -433,7 +420,7 @@ def parseFStringArgumentFormat(line, position):
             addToStringBuilder(i)
             currentStringStart = i + 1
         elif escaping and char in ARGUMENT_FORMAT_SHORTHANDS:
-            macroArgumentFormat = ARGUMENT_FORMAT_SHORTHANDS_TO_AF[char]
+            macroArgumentFormat = ARGUMENT_FORMAT_SHORTHANDS_TO_ARGUMENT_FORMAT[char]
             if i - 1 > currentStringStart:
                 addToStringBuilder(i - 1)
                 addStringBuilderToArgumentFormat()
