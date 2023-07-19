@@ -2,40 +2,72 @@ import tomllib
 
 
 class ConfigException(Exception):
-    def __init__(self, message, profile=None):
+    def __init__(self, message, profile=None, subprofile=None):
         self.message = message
         self.profile = profile
+        self.subprofile = subprofile
 
 
+# setting types
+GLOBAL = "global"
+PROFILE = "profile"
+SUBPROFILE = "subprofile"
+
+# shared settings
+ENABLED = "enabled"
+
+# global settings
 SOCKET_PATH = "socket-path"
 
-ENABLED = "enabled"
+# profile settings
 MIDI_INPUT = "midi-input"
-MACRO_FILE = "macro-file"
-TOGGLE_TRIGGER = "toggle-trigger"
-TOGGLE_CALLBACK = "toggle-callback"
+GLOBAL_MACROS = "global-macros"
+ENABLE_TRIGGER = "enable-trigger"
+CYCLE_SUBPROFILES_TRIGGER = "cycle-subprofiles-trigger"
+ENABLE_CALLBACK = "enable-callback"
 VIRTUAL_SUSTAIN_CALLBACK = "virtual-sustain-callback"
+SUBPROFILE_CALLBACK = "subprofile-callback"
 DEBOUNCE_CALLBACKS = "debounce-callbacks"
 
-CALLBACK_TYPES = set((TOGGLE_CALLBACK, VIRTUAL_SUSTAIN_CALLBACK))
+# subprofile settings
+MACROS = "macros"
+
+CALLBACK_TYPES = set((ENABLE_CALLBACK, VIRTUAL_SUSTAIN_CALLBACK, SUBPROFILE_CALLBACK))
+TRIGGER_TYPES = set((ENABLE_TRIGGER, CYCLE_SUBPROFILES_TRIGGER))
 
 PROFILES = "profiles"
+SUBPROFILES = "subprofiles"
 
-SETTINGS = {SOCKET_PATH: str}
+GLOBAL_SETTINGS = {SOCKET_PATH: str}
 PROFILE_SETTINGS = {
     ENABLED: bool,
     MIDI_INPUT: str,
-    MACRO_FILE: str,
-    TOGGLE_TRIGGER: str,
-    TOGGLE_CALLBACK: str,
+    GLOBAL_MACROS: str,
+    ENABLE_TRIGGER: str,
+    CYCLE_SUBPROFILES_TRIGGER: str,
+    ENABLE_CALLBACK: str,
     VIRTUAL_SUSTAIN_CALLBACK: str,
+    SUBPROFILE_CALLBACK: str,
     DEBOUNCE_CALLBACKS: bool,
 }
-REQUIRED_SETTINGS = set()
-REQUIRED_PROFILE_SETTINGS = set((ENABLED, MIDI_INPUT, MACRO_FILE, DEBOUNCE_CALLBACKS))
+SUBPROFILE_SETTINGS = {ENABLED: bool, MACROS: str}
+SETTINGS = {
+    GLOBAL: GLOBAL_SETTINGS,
+    PROFILE: PROFILE_SETTINGS,
+    SUBPROFILE: SUBPROFILE_SETTINGS,
+}
+
+REQUIRED_GLOBAL_SETTINGS = set()
+REQUIRED_PROFILE_SETTINGS = set((ENABLED, MIDI_INPUT, DEBOUNCE_CALLBACKS))
+REQUIRED_SUBPROFILE_SETTINGS = set((ENABLED, MACROS))
+REQUIRED_SETTINGS = {
+    GLOBAL: REQUIRED_GLOBAL_SETTINGS,
+    PROFILE: REQUIRED_PROFILE_SETTINGS,
+    SUBPROFILE: REQUIRED_SUBPROFILE_SETTINGS,
+}
 
 
-def getDefaultConfig():
+def getDefaultGlobalConfig():
     return {}
 
 
@@ -43,38 +75,33 @@ def getDefaultProfileConfig():
     return {ENABLED: True, DEBOUNCE_CALLBACKS: True}
 
 
-def verifySettingType(key, value, profile=None):
-    expectedType = PROFILE_SETTINGS[key] if profile else SETTINGS[key]
+def getDefaultSubprofileConfig():
+    return {ENABLED: True}
+
+
+def verifySettingType(key, value, configType, profile=None, subprofile=None):
+    settings = SETTINGS[configType]
+    expectedType = settings[key]
     actualType = type(value)
     if expectedType != actualType:
         raise ConfigException(
-            f"setting: {key}, should be of type: {expectedType.__name__}", profile
+            f"setting: {key}, should be of type: {expectedType.__name__}",
+            profile,
+            subprofile,
         )
 
 
-def verifyRequiredSettingsPresent(requiredSettings, settings, profile=None):
+def verifyRequiredSettingsPresent(settings, configType, profile=None, subprofile=None):
+    requiredSettings = REQUIRED_SETTINGS[configType]
     for setting in requiredSettings:
         if setting not in settings:
             raise ConfigException(
-                f"required setting: {setting}, is not present", profile
+                f"required setting: {setting}, is not present", profile, subprofile
             )
-
-
-def loadProfileConfig(profileName, tomlTable):
-    config = getDefaultProfileConfig()
-    for key, value in tomlTable.items():
-        if key not in PROFILE_SETTINGS:
-            raise ConfigException(
-                f"setting: {key}, is not a valid setting", profileName
-            )
-        verifySettingType(key, value, profileName)
-        config[key] = value
-    verifyRequiredSettingsPresent(REQUIRED_PROFILE_SETTINGS, config, profileName)
-    return config
 
 
 def loadConfig(configFilePath):
-    config = getDefaultConfig()
+    config = getDefaultGlobalConfig()
     profiles = {}
     with open(configFilePath, "rb") as configFile:
         data = tomllib.load(configFile)
@@ -84,10 +111,41 @@ def loadConfig(configFilePath):
             if profileConfig[ENABLED]:
                 profiles[key] = profileConfig
             continue
-        if key not in SETTINGS:
+        if key not in GLOBAL_SETTINGS:
             raise ConfigException(f"setting: {key}, is not a valid setting")
-        verifySettingType(key, value)
+        verifySettingType(key, value, GLOBAL)
         config[key] = value
     config[PROFILES] = profiles
-    verifyRequiredSettingsPresent(REQUIRED_SETTINGS, config)
+    verifyRequiredSettingsPresent(config, GLOBAL)
+    return config
+
+
+def loadProfileConfig(profile, tomlTable):
+    config = getDefaultProfileConfig()
+    subprofiles = {}
+    for key, value in tomlTable.items():
+        if isinstance(value, dict):
+            subprofileConfig = loadSubprofileConfig(profile, key, value)
+            if subprofileConfig[ENABLED]:
+                subprofiles[key] = subprofileConfig
+            continue
+        if key not in PROFILE_SETTINGS:
+            raise ConfigException(f"setting: {key}, is not a valid setting", profile)
+        verifySettingType(key, value, PROFILE, profile)
+        config[key] = value
+    config[SUBPROFILES] = subprofiles
+    verifyRequiredSettingsPresent(config, PROFILE, profile)
+    return config
+
+
+def loadSubprofileConfig(profile, subprofile, tomlTable):
+    config = getDefaultSubprofileConfig()
+    for key, value in tomlTable.items():
+        if key not in SUBPROFILE_SETTINGS:
+            raise ConfigException(
+                f"setting: {key}, is not a valid setting", profile, subprofile
+            )
+        verifySettingType(key, value, SUBPROFILE, profile, subprofile)
+        config[key] = value
+    verifyRequiredSettingsPresent(config, SUBPROFILE, profile, subprofile)
     return config

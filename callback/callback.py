@@ -1,12 +1,12 @@
 class Callback:
-    def __init__(self, profileName, callbackType, script, message):
-        self.profileName = profileName
+    def __init__(self, profile, callbackType, script, message):
+        self.profile = profile
         self.callbackType = callbackType
         self.script = script
         self.message = message
 
-    def getProfileName(self):
-        return self.profileName
+    def getProfile(self):
+        return self.profile
 
     def getCallbackType(self):
         return self.callbackType

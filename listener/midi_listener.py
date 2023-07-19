@@ -9,16 +9,19 @@ from rtmidi._rtmidi import (
 from aspn import aspn
 from log.mm_logging import logInfo, exceptionStr
 from macro.matching import numNotesInTrigger, testTriggerWithPlayedNotes
-from parser.parser import ParseError, parseMacroFile
 from listener.played_note import PlayedNote
+from listener.subprofile_holder import SubprofileHolder
 from midi.constants import *
 from callback.callback import Callback
 from config.mm_config import (
-    MACRO_FILE,
     MIDI_INPUT,
-    TOGGLE_TRIGGER,
-    TOGGLE_CALLBACK,
+    ENABLE_TRIGGER,
+    CYCLE_SUBPROFILES_TRIGGER,
+    ENABLE_CALLBACK,
     VIRTUAL_SUSTAIN_CALLBACK,
+    SUBPROFILE_CALLBACK,
+    SUBPROFILES,
+    GLOBAL_MACROS,
 )
 
 
@@ -28,10 +31,13 @@ class ListenerException(Exception):
 
 
 class MidiListener:
-    def __init__(self, profileName, config, callbackQueue):
-        self.profileName = profileName
+    def __init__(self, profile, config, callbackQueue):
+        self.profile = profile
         self.config = config
         self.callbackQueue = callbackQueue
+        subprofiles = self.config[SUBPROFILES]
+        self.subprofileHolder = SubprofileHolder(subprofiles) if subprofiles else None
+        self.globalMacroTree = self.config[GLOBAL_MACROS]
         self.listenerLock = RLock()
         self.pressed = []
         self.queuedReleases = set()
@@ -39,13 +45,19 @@ class MidiListener:
         self.pedalDown = False
         self.virtualPedalDown = False
         self.enabled = True
-        self.toggleTrigger = self.config.get(TOGGLE_TRIGGER)
-        self.toggleTriggerLength = (
-            numNotesInTrigger(self.toggleTrigger) if self.toggleTrigger else None
+        self.enableTrigger = self.config.get(ENABLE_TRIGGER)
+        self.enableTriggerLength = (
+            numNotesInTrigger(self.enableTrigger) if self.enableTrigger else None
         )
-        self.toggleCallback = self.config.get(TOGGLE_CALLBACK)
+        self.cycleSubprofilesTrigger = self.config.get(CYCLE_SUBPROFILES_TRIGGER)
+        self.cycleSubprofilesTriggerLength = (
+            numNotesInTrigger(self.cycleSubprofilesTrigger)
+            if self.cycleSubprofilesTrigger
+            else None
+        )
+        self.enableCallback = self.config.get(ENABLE_CALLBACK)
         self.virtualSustainCallback = self.config.get(VIRTUAL_SUSTAIN_CALLBACK)
-
+        self.subprofileCallback = self.config.get(SUBPROFILE_CALLBACK)
 
     def toggleEnabled(self):
         with self.listenerLock:
@@ -72,17 +84,43 @@ class MidiListener:
                 return
             self.toggleVirtualPedalDown()
 
+    def cycleSubprofiles(self):
+        if not self.subprofileHolder:
+            return
+        with self.listenerLock:
+            subprofileChanged = self.subprofileHolder.cycle()
+            if subprofileChanged:
+                self.queueSubprofileCallback()
+            return self.subprofileHolder.getCurrent()
+
+    def setSubprofile(self, subprofile):
+        if not self.subprofileHolder:
+            return
+        with self.listenerLock:
+            subprofileChanged = self.subprofileHolder.setCurrent(subprofile)
+            if subprofileChanged:
+                self.queueSubprofileCallback()
+            return self.subprofileHolder.getCurrent()
+
+    def hasSubprofile(self, subprofile):
+        return self.subprofileHolder and self.subprofileHolder.has(subprofile)
+
+    def getSubprofiles(self):
+        if self.subprofileHolder:
+            return self.subprofileHolder.getNames()
+        return ()
+
     def booleanCallbackMessage(self, enabled):
         return f"{'enabled' if enabled else 'disabled'}"
 
     def queueToggleCallback(self):
-        if self.toggleCallback:
+        if self.enableCallback:
             self.callbackQueue.put(
                 Callback(
-                    self.profileName,
-                    TOGGLE_CALLBACK,
-                    self.toggleCallback,
-                    self.booleanCallbackMessage(self.enabled)
+                    self.profile,
+                    ENABLE_CALLBACK,
+                    self.enableCallback,
+                    self.booleanCallbackMessage(self.enabled),
                 )
             )
 
@@ -90,10 +128,21 @@ class MidiListener:
         if self.virtualSustainCallback:
             self.callbackQueue.put(
                 Callback(
-                    self.profileName,
+                    self.profile,
                     VIRTUAL_SUSTAIN_CALLBACK,
                     self.virtualSustainCallback,
                     self.booleanCallbackMessage(self.virtualPedalDown),
+                )
+            )
+
+    def queueSubprofileCallback(self):
+        if self.subprofileHolder and self.subprofileCallback:
+            self.callbackQueue.put(
+                Callback(
+                    self.profile,
+                    SUBPROFILE_CALLBACK,
+                    self.subprofileCallback,
+                    self.subprofileHolder.getCurrent(),
                 )
             )
 
@@ -120,7 +169,7 @@ class MidiListener:
                 self.handleSustainRelease()
             return
         eventData, _ = event
-        print(eventData, _)
+        # print(eventData, _)
         if len(eventData) < 3:
             return
         (status, data_1, data_2) = eventData
@@ -159,47 +208,41 @@ class MidiListener:
                 ]
         self.lastChangeWasAdd = wasPress
 
-    def executeMacros(self):
-        if (
-            self.toggleTrigger
-            and self.toggleTriggerLength == len(self.pressed)
-            and testTriggerWithPlayedNotes(
-                self.pressed, self.toggleTrigger, self.toggleTriggerLength
-            )
-        ):
+    def testTrigger(self, trigger, triggerLength):
+        return (
+            trigger
+            and triggerLength == len(self.pressed)
+            and testTriggerWithPlayedNotes(self.pressed, trigger, triggerLength)
+        )
+
+    def handleTriggers(self):
+        if self.testTrigger(self.enableTrigger, self.enableTriggerLength):
             self.toggleEnabled()
-            return
-        if not self.enabled:
+            return True
+        if self.testTrigger(
+            self.cycleSubprofilesTrigger, self.cycleSubprofilesTriggerLength
+        ):
+            self.cycleSubprofiles()
+            return True
+        return False
+
+    def executeMacros(self):
+        if self.handleTriggers() or not self.enabled:
             return
         logInfo(
             f"evaluating pressed keys: {[aspn.midiNoteToASPN(playedNote.getNote()) for playedNote in self.pressed]}",
-            self.profileName,
+            self.profile,
         )
-        self.macroTree.executeMacros(self.pressed)
+        self.globalMacroTree.executeMacros(self.pressed)
+        if not self.subprofileHolder:
+            return
+        self.subprofileHolder.getCurrentMacroTree().executeMacros(self.pressed)
 
     def run(self):
-        self.initializeMacros()
         self.queueToggleCallback()
         self.queueVirtualSustainCallback()
+        self.queueSubprofileCallback()
         self.openMIDIPort()
-
-    def initializeMacros(self):
-        macroFilePath = self.config[MACRO_FILE]
-        try:
-            with open(macroFilePath, "r") as macroFile:
-                self.macroTree = parseMacroFile(macroFile, self.profileName)
-        except ParseError as parseError:
-            raise ListenerException(parseError.message)
-        except (FileNotFoundError, IsADirectoryError):
-            raise ListenerException(f"invalid macro file: {macroFilePath}")
-        except PermissionError:
-            raise ListenerException(
-                f"insufficient permissions to open macro file: {macroFilePath}"
-            )
-        except Exception as exception:
-            raise ListenerException(
-                f"could not open macro file: {macroFilePath}, {exceptionStr(exception)}"
-            )
 
     def openMIDIPort(self):
         try:

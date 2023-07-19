@@ -57,7 +57,7 @@ def preprocessFile(macroFile):
     return LINE_CONTINUATION_REGEX.sub("", macroFile.read())
 
 
-def parseMacroFile(macroFile, profileName):
+def parseMacroFile(macroFile, profile, subprofile=None):
     macroTree = MacroTree()
     processedText = preprocessFile(macroFile)
     for line in processedText.split("\n"):
@@ -69,7 +69,7 @@ def parseMacroFile(macroFile, profileName):
         if line[position] == "#":
             continue
         macro, script = parseMacroFileLine(line, position)
-        logInfo(f"adding macro: {macro} → {script}", profileName)
+        logInfo(f"adding macro: {macro} → {script}", profile, subprofile)
         macroTree.addMacroToTree(macro, script)
     return macroTree
 

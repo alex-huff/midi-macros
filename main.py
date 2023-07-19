@@ -5,11 +5,17 @@ import argparse
 import stat
 import subprocess
 from queue import Queue, Empty
-from threading import Thread, Event
+from threading import Thread
 from collections import defaultdict
 from rtmidi import MidiIn
 from appdirs import user_config_dir
-from parser.parser import ParseBuffer, ParseError, eatWhitespace, parseTriggers
+from parser.parser import (
+    ParseBuffer,
+    ParseError,
+    parseMacroFile,
+    eatWhitespace,
+    parseTriggers,
+)
 from listener.midi_listener import ListenerException, MidiListener
 from ipc.protocol import (
     IPCIOError,
@@ -23,8 +29,10 @@ from ipc.handler import handleMessage
 from config.mm_config import (
     SOCKET_PATH,
     PROFILES,
-    MACRO_FILE,
-    TOGGLE_TRIGGER,
+    SUBPROFILES,
+    GLOBAL_MACROS,
+    MACROS,
+    TRIGGER_TYPES,
     DEBOUNCE_CALLBACKS,
     loadConfig,
     ConfigException,
@@ -79,9 +87,9 @@ class MidiMacros:
             debouncedCallbacks = defaultdict(dict)
             profileConfigs = self.config[PROFILES]
             for callback in callbacks:
-                profileName = callback.getProfileName()
-                if profileConfigs[profileName][DEBOUNCE_CALLBACKS]:
-                    debouncedCallbacks[profileName][callback.getCallbackType()] = callback
+                profile = callback.getProfile()
+                if profileConfigs[profile][DEBOUNCE_CALLBACKS]:
+                    debouncedCallbacks[profile][callback.getCallbackType()] = callback
                 else:
                     self.executeCallback(callback)
             for debouncedCallbacksForProfile in debouncedCallbacks.values():
@@ -99,12 +107,12 @@ class MidiMacros:
                 stderr=subprocess.DEVNULL,
                 text=True,
                 shell=True,
-                start_new_session=True # so that KeyboardInterrupt does not SIGINT child process
+                start_new_session=True,  # so that KeyboardInterrupt does not SIGINT child process
             ).communicate(callback.getMessage())
         except Exception as exception:
             logError(
                 f"failed to run callback, {exceptionStr(exception)}",
-                callback.getProfileName(),
+                callback.getProfile(),
             )
 
     def initialize(self):
@@ -129,10 +137,15 @@ class MidiMacros:
             tempConfig = loadConfig(self.configFilePath)
             self.fixMacroFilePaths(tempConfig)
             self.parseControlTriggers(tempConfig)
+            self.buildMacroTrees(tempConfig)
             self.config = tempConfig
             return True
         except ConfigException as configException:
-            logError(configException.message, configException.profile)
+            logError(
+                configException.message,
+                configException.profile,
+                configException.subprofile,
+            )
         except (FileNotFoundError, IsADirectoryError):
             logError(f"config file path: {self.configFilePath}, was not a valid file")
         except PermissionError:
@@ -145,58 +158,100 @@ class MidiMacros:
             )
         return False
 
+    def fixMacroFilePath(self, givenMacroFilePath):
+        givenMacroFilePath = os.path.expanduser(givenMacroFilePath)
+        if os.path.isabs(givenMacroFilePath):
+            return givenMacroFilePath
+        return os.path.join(self.macroDirPath, givenMacroFilePath)
+
     def fixMacroFilePaths(self, config):
         for profileConfig in config[PROFILES].values():
-            givenMacroFilePath = os.path.expanduser(profileConfig[MACRO_FILE])
-            if os.path.isabs(givenMacroFilePath):
-                profileConfig[MACRO_FILE] = givenMacroFilePath
-            else:
-                profileConfig[MACRO_FILE] = os.path.join(
-                    self.macroDirPath, givenMacroFilePath
-                )
+            givenMacroFilePath = profileConfig[GLOBAL_MACROS]
+            profileConfig[GLOBAL_MACROS] = self.fixMacroFilePath(givenMacroFilePath)
+            for subprofileConfig in profileConfig[SUBPROFILES].values():
+                givenMacroFilePath = subprofileConfig[MACROS]
+                subprofileConfig[MACROS] = self.fixMacroFilePath(givenMacroFilePath)
 
-    def parseControlTrigger(self, profileName, profileConfig, triggerType):
+    def parseControlTrigger(self, config, triggerType, profile=None, subprofile=None):
         try:
-            parseBuffer = ParseBuffer(profileConfig[triggerType])
+            parseBuffer = ParseBuffer(config[triggerType])
             trigger, position = parseTriggers(parseBuffer, 0)
             position = eatWhitespace(parseBuffer, position)
             if position != len(parseBuffer):
                 raise ConfigException(
-                    f"extraneous characters in {triggerType}: {parseBuffer[position:]}"
+                    f"extraneous characters in {triggerType}: {parseBuffer[position:]}",
+                    profile,
+                    subprofile,
                 )
-            profileConfig[triggerType] = trigger
+            config[triggerType] = trigger
         except ParseError as parseError:
             raise ConfigException(
-                f"failed to parse {triggerType}: {parseError.message}", profileName
+                f"failed to parse {triggerType}: {parseError.message}",
+                profile,
+                subprofile,
             )
 
     def parseControlTriggers(self, config):
-        for profileName, profileConfig in config[PROFILES].items():
-            if TOGGLE_TRIGGER in profileConfig:
-                self.parseControlTrigger(profileName, profileConfig, TOGGLE_TRIGGER)
+        for profile, profileConfig in config[PROFILES].items():
+            for triggerType in TRIGGER_TYPES:
+                if triggerType in profileConfig:
+                    self.parseControlTrigger(profileConfig, triggerType, profile)
+
+    def buildMacroTree(self, macroFilePath, profile, subprofile=None):
+        try:
+            with open(macroFilePath, "r") as macroFile:
+                return parseMacroFile(macroFile, profile, subprofile)
+        except ParseError as parseError:
+            raise ConfigException(parseError.message, profile, subprofile)
+        except (FileNotFoundError, IsADirectoryError):
+            raise ConfigException(
+                f"invalid macro file: {macroFilePath}", profile, subprofile
+            )
+        except PermissionError:
+            raise ConfigException(
+                f"insufficient permissions to open macro file: {macroFilePath}",
+                profile,
+                subprofile,
+            )
+        except Exception as exception:
+            raise ConfigException(
+                f"could not open macro file: {macroFilePath}, {exceptionStr(exception)}",
+                profile,
+                subprofile,
+            )
+
+    def buildMacroTrees(self, config):
+        for profile, profileConfig in config[PROFILES].items():
+            macroFilePath = profileConfig[GLOBAL_MACROS]
+            profileConfig[GLOBAL_MACROS] = self.buildMacroTree(macroFilePath, profile)
+            for subprofile, subprofileConfig in profileConfig[SUBPROFILES].items():
+                macroFilePath = subprofileConfig[MACROS]
+                subprofileConfig[MACROS] = self.buildMacroTree(
+                    macroFilePath, profile, subprofile
+                )
 
     def stopListeners(self):
         for listener in self.listeners.values():
             listener.stop()
 
-    def getProfile(self, profileName):
-        return self.listeners.get(profileName)
+    def getProfile(self, profile):
+        return self.listeners.get(profile)
 
     def createAndRunListeners(self):
         self.listeners = {}
-        for profileName, profileConfig in self.config[PROFILES].items():
-            listener = MidiListener(profileName, profileConfig, self.callbackQueue)
-            self.listeners[profileName] = listener
-            self.tryRunListener(profileName)
+        for profile, profileConfig in self.config[PROFILES].items():
+            listener = MidiListener(profile, profileConfig, self.callbackQueue)
+            self.listeners[profile] = listener
+            self.tryRunListener(profile)
 
     def getLoadedProfiles(self):
         return self.listeners.keys()
 
-    def tryRunListener(self, profileName):
+    def tryRunListener(self, profile):
         try:
-            self.listeners[profileName].run()
+            self.listeners[profile].run()
         except ListenerException as listenerException:
-            logError(listenerException.message, profileName)
+            logError(listenerException.message, profile)
 
     def startServer(self):
         self.ipcServer = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)

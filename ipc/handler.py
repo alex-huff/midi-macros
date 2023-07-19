@@ -1,11 +1,12 @@
-from log.mm_logging import logInfo
-
 TOGGLE = "toggle"
 ENABLE = "enable"
 DISABLE = "disable"
 RELOAD = "reload"
 PROFILE = "profile"
 GET_LOADED_PROFILES = "get-loaded-profiles"
+GET_LOADED_SUBPROFILES = "get-loaded-subprofiles"
+CYCLE_SUBPROFILES = "cycle-subprofiles"
+SET_SUBPROFILE = "set-subprofile"
 VIRTUAL_SUSTAIN = "virtual-sustain"
 
 
@@ -21,27 +22,18 @@ def handleMessage(message, midiMacros):
     if len(message) == 0:
         return failResponse("empty message")
     messageType = message[0]
+    if messageType in (RELOAD, GET_LOADED_PROFILES):
+        if len(message) > 1:
+            return failResponse(f"{messageType} takes no arguments")
     if messageType == RELOAD:
-        return handleReloadMessage(message, 1, midiMacros)
+        if not midiMacros.reload():
+            return failResponse("failed to reload config")
+        return successResponse("successfully reloaded all profiles")
     elif messageType == PROFILE:
         return handleProfileMessage(message, 1, midiMacros)
     elif messageType == GET_LOADED_PROFILES:
-        return handleGetLoadedProfilesMessage(message, 1, midiMacros)
-    return failResponse("invalid message type")
-
-
-def handleReloadMessage(message, position, midiMacros):
-    if len(message) > position:
-        return failResponse("reload message takes no arguments")
-    if not midiMacros.reload():
-        return failResponse("failed to reload config. check logs for details")
-    return successResponse("successfully reloaded all profiles")
-
-
-def handleGetLoadedProfilesMessage(message, position, midiMacros):
-    if len(message) > position:
-        return failResponse("get-loaded-profiles message takes no arguments")
-    return successResponse("\n".join(midiMacros.getLoadedProfiles()))
+        return successResponse("\n".join(midiMacros.getLoadedProfiles()))
+    return failResponse(f"invalid message type: {messageType}")
 
 
 def handleProfileMessage(message, position, midiMacros):
@@ -49,34 +41,49 @@ def handleProfileMessage(message, position, midiMacros):
         return failResponse(
             "not enough arguments, profile name and message type required"
         )
-    profileName = message[position]
+    profile = message[position]
     messageType = message[position + 1]
-    midiListener = midiMacros.getProfile(profileName)
+    midiListener = midiMacros.getProfile(profile)
     if not midiListener:
-        return failResponse("invalid profile")
+        return failResponse(f"invalid profile: {profile}")
     position += 2
-    if messageType in (TOGGLE, ENABLE, DISABLE):
+    if messageType in (
+        TOGGLE,
+        ENABLE,
+        DISABLE,
+        GET_LOADED_SUBPROFILES,
+        CYCLE_SUBPROFILES,
+    ):
         if len(message) > position:
-            return failResponse(f"profile {messageType} takes no arguments")
+            return failResponse(f"{messageType} takes no arguments")
     if messageType == TOGGLE:
         enabled = midiListener.toggleEnabled()
-        return successResponse(f'profile is now {"enabled" if enabled else "disabled"}')
+        return successResponse(
+            f'profile: {profile} is now {"enabled" if enabled else "disabled"}'
+        )
     elif messageType == ENABLE:
         midiListener.setEnabled(True)
-        return successResponse("profile is now enabled")
+        return successResponse(f"profile: {profile} is now enabled")
     elif messageType == DISABLE:
         midiListener.setEnabled(False)
-        return successResponse("profile is now disabled")
+        return successResponse(f"profile: {profile} is now disabled")
     elif messageType == VIRTUAL_SUSTAIN:
         return handleVirtualSustainMessage(message, position, midiListener)
-    return failResponse("invalid message type after profile")
+    elif messageType == GET_LOADED_SUBPROFILES:
+        return successResponse("\n".join(midiListener.getSubprofiles()))
+    elif messageType == CYCLE_SUBPROFILES:
+        newSubprofile = midiListener.cycleSubprofiles()
+        if not newSubprofile:
+            return failResponse("no loaded subprofiles to cycle through")
+        return successResponse(f"active subprofile is now: {newSubprofile}")
+    elif messageType == SET_SUBPROFILE:
+        return handleSetSubprofile(message, position, midiListener)
+    return failResponse(f"invalid message type: {messageType}")
 
 
 def handleVirtualSustainMessage(message, position, midiListener):
     if len(message) != position + 1:
-        return failResponse(
-            "profile virtual-sustain message takes exactly one argument"
-        )
+        return failResponse("virtual-sustain message takes exactly one argument")
     action = message[position]
     if action == TOGGLE:
         enabled = midiListener.toggleVirtualPedalDown()
@@ -90,3 +97,16 @@ def handleVirtualSustainMessage(message, position, midiListener):
         midiListener.setVirtualPedalDown(False)
         return successResponse("virtual-sustain is now disabled")
     return failResponse("invalid virtual-sustain action")
+
+
+def handleSetSubprofile(message, position, midiListener):
+    if len(message) != position + 1:
+        return failResponse("set-subprofile message takes exactly one argument")
+    subprofile = message[position]
+    try:
+        newSubprofile = midiListener.setSubprofile(subprofile)
+    except ValueError:
+        return failResponse(f"invalid subprofile: {subprofile}")
+    if not newSubprofile:
+        return failResponse("no loaded subprofiles")
+    return successResponse(f"subprofile is now: {newSubprofile}")
