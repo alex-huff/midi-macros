@@ -13,7 +13,6 @@ from parser.parser import (
     ParseBuffer,
     ParseError,
     parseMacroFile,
-    eatWhitespace,
     parseTriggers,
 )
 from listener.midi_listener import ListenerException, MidiListener
@@ -174,12 +173,17 @@ class MidiMacros:
 
     def parseControlTrigger(self, config, triggerType, profile=None, subprofile=None):
         try:
-            parseBuffer = ParseBuffer(config[triggerType])
-            trigger, position = parseTriggers(parseBuffer, 0)
-            position = eatWhitespace(parseBuffer, position)
-            if position != len(parseBuffer):
+            profileSpecifier = f"@{profile}" if profile else ""
+            subprofileSpecifier = f"@{subprofile}" if subprofile else ""
+            lines = config[triggerType].split("\n")
+            parseBuffer = ParseBuffer(lines, f"{triggerType}{subprofileSpecifier}{profileSpecifier}")
+            parseBuffer.skipTillData()
+            trigger = parseTriggers(parseBuffer)
+            parseBuffer.skipTillData()
+            if not parseBuffer.atEndOfBuffer():
+                extraData = parseBuffer.stringFrom(parseBuffer.at(), None)
                 raise ConfigException(
-                    f"extraneous characters in {triggerType}: {parseBuffer[position:]}",
+                    f"extraneous data in {triggerType}: {extraData}",
                     profile,
                     subprofile,
                 )
@@ -200,7 +204,7 @@ class MidiMacros:
     def buildMacroTree(self, macroFilePath, profile, subprofile=None):
         try:
             with open(macroFilePath, "r") as macroFile:
-                return parseMacroFile(macroFile, profile, subprofile)
+                return parseMacroFile(macroFile, os.path.basename(macroFilePath), profile, subprofile)
         except ParseError as parseError:
             raise ConfigException(parseError.message, profile, subprofile)
         except (FileNotFoundError, IsADirectoryError):
