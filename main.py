@@ -106,7 +106,7 @@ class MidiMacros:
                 stderr=subprocess.DEVNULL,
                 text=True,
                 shell=True,
-                start_new_session=True,  # so that KeyboardInterrupt does not SIGINT child process
+                start_new_session=True,
             ).communicate(callback.getMessage())
         except Exception as exception:
             logError(

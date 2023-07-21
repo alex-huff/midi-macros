@@ -9,6 +9,7 @@ from macro.tree.macro_tree import MacroTree
 from macro.macro_note import MacroNote
 from macro.macro_chord import MacroChord
 from macro.macro import Macro
+from script.script import Script
 
 
 BASE_PITCH_REGEX = re.compile(r"[A-Ga-g]")
@@ -23,6 +24,7 @@ ARGUMENT_FORMAT_SHORTHANDS_TO_ARGUMENT_FORMAT = {
     "v": FORMAT_VELOCITY,
     "t": FORMAT_TIME,
 }
+INDENT = "\t"
 
 
 def generateArrowLine(parseBuffer):
@@ -53,7 +55,8 @@ def parseMacroFile(macroFile, source, profile, subprofile=None):
     parseBuffer = ParseBuffer(lines, source)
     while not parseBuffer.atEndOfBuffer():
         macro, script = parseMacroAndScript(parseBuffer)
-        logInfo(f"adding macro: {macro} → {script}", profile, subprofile)
+        interpreterSpecification = f'("{script.getInterpreter()}")' if script.getInterpreter() else ""
+        logInfo(f"adding macro: {macro} {interpreterSpecification}→ {script.getScript()}", profile, subprofile)
         macroTree.addMacroToTree(macro, script)
         parseBuffer.skipTillData()
     return macroTree
@@ -64,20 +67,39 @@ def parseMacroAndScript(parseBuffer):
     parseBuffer.skipTillData()
     if (
         parseBuffer.getCurrentChar() != "*"
+        and parseBuffer.getCurrentChar() != "("
         and parseBuffer.getCurrentChar() not in ARROW_START_CHARS
     ):
         generateParseError(
             parseBuffer,
-            "+, argument definition, or arrow operator (->, →)",
+            "+, argument definition, interpreter specification, or arrow operator (->, →)",
             parseBuffer.getCurrentChar(),
         )
     argumentDefinition = ZERO_ARGUMENT_DEFINITION
     if parseBuffer.getCurrentChar() == "*":
         argumentDefinition = parseArgumentDefinition(parseBuffer)
-    parseBuffer.skipTillData()
+        parseBuffer.skipTillData()
+        if (
+            parseBuffer.getCurrentChar() != "("
+            and parseBuffer.getCurrentChar() not in ARROW_START_CHARS
+        ):
+            generateParseError(
+                parseBuffer,
+                "interpreter specification, or arrow operator (->, →)",
+                parseBuffer.getCurrentChar(),
+            )
+    interpreter = None
+    if parseBuffer.getCurrentChar() == "(":
+        interpreter = parseInterpreterSpecification(parseBuffer)
+        if parseBuffer.getCurrentChar() not in ARROW_START_CHARS:
+            generateParseError(
+                parseBuffer,
+                "arrow operator (->, →)",
+                parseBuffer.getCurrentChar(),
+            )
     eatArrow(parseBuffer)
     parseBuffer.skipTillData()
-    script = parseScripts(parseBuffer)
+    script = Script(parseScripts(parseBuffer), interpreter)
     return Macro(triggers, argumentDefinition), script
 
 
@@ -99,17 +121,17 @@ def parseTriggers(parseBuffer):
     triggers = []
     while True:
         parseBuffer.skipTillData()
-        subMacro = parseSubMacro(parseBuffer)
-        triggers.append(subMacro)
-        afterSubMacro = parseBuffer.at()
+        trigger = parseTrigger(parseBuffer)
+        triggers.append(trigger)
+        afterTrigger = parseBuffer.at()
         parseBuffer.skipTillData()
         if parseBuffer.atEndOfLine() or parseBuffer.getCurrentChar() != "+":
-            parseBuffer.jump(afterSubMacro)
+            parseBuffer.jump(afterTrigger)
             return triggers
         parseBuffer.skip(1)
 
 
-def parseSubMacro(parseBuffer):
+def parseTrigger(parseBuffer):
     if parseBuffer.getCurrentChar() == "(":
         return parseChord(parseBuffer)
     if parseBuffer.getCurrentChar().isdigit() or BASE_PITCH_REGEX.match(
@@ -450,9 +472,32 @@ def parseFStringArgumentFormat(parseBuffer):
     return argumentFormat
 
 
+def parseInterpreterSpecification(parseBuffer):
+    if not parseBuffer.getCurrentChar() == "(":
+        generateParseError(
+            parseBuffer, "interpreter specification", parseBuffer.getCurrentChar()
+        )
+    parseBuffer.skip(1)
+    if parseBuffer.getCurrentChar() == '"':
+        interpreter = parseQuotedString(parseBuffer)
+        if not parseBuffer.getCurrentChar() == ")":
+            generateParseError(parseBuffer, ")", parseBuffer.getCurrentChar())
+    else:
+        startPosition = parseBuffer.at()
+        while not parseBuffer.getCurrentChar() == ")":
+            parseBuffer.skip(1)
+        interpreter = parseBuffer.stringFrom(startPosition, parseBuffer.at())
+    parseBuffer.skip(1)
+    return interpreter
+
+
 def parseMultilineScript(parseBuffer):
     if not parseBuffer.getCurrentChar() == "{":
-        generateParseError(parseBuffer, "multi-line script", None)
+        generateParseError(
+            parseBuffer,
+            "multi-line script",
+            parseBuffer.getCurrentChar() if not parseBuffer.atEndOfLine() else None,
+        )
     parseBuffer.skip(1)
     parseBuffer.eatWhitespace()
     if not parseBuffer.atEndOfLine():
@@ -461,23 +506,26 @@ def parseMultilineScript(parseBuffer):
             None,
             "illegal non-whitespace character after multi-line script open. Script must start on next line after indent",
         )
+    lines = []
+
+    def skipEmptyLines():
+        while parseBuffer.atEndOfLine():
+            parseBuffer.newline()
+            lines.append("")
+
     parseBuffer.newline()
-    if parseBuffer.getCurrentChar() == "}":
-        parseBuffer.skip(1)
-        return ""
-    indent = parseBuffer.readWhitespace()
-    if not indent:
-        generateParseError(parseBuffer, "indent or }", parseBuffer.getCurrentChar())
-    lines = [parseBuffer.readRestOfLine()]
-    parseBuffer.newline()
+    skipEmptyLines()
     while not parseBuffer.getCurrentChar() == "}":
-        if not bufferHasSubstring(parseBuffer, indent):
+        if not bufferHasSubstring(parseBuffer, INDENT):
             if not parseBuffer.getCurrentChar().isspace():
-                generateParseError(parseBuffer, "indent or }", parseBuffer.getCurrentChar())
-            generateParseError(parseBuffer, None, "inconsistent indentation")
-        parseBuffer.skip(len(indent))
+                generateParseError(
+                    parseBuffer, "indent or }", parseBuffer.getCurrentChar()
+                )
+            generateParseError(parseBuffer, None, "incorrect indentation")
+        parseBuffer.skip(len(INDENT))
         lines.append(parseBuffer.readRestOfLine())
         parseBuffer.newline()
+        skipEmptyLines()
     parseBuffer.skip(1)
     return "\n".join(lines)
 

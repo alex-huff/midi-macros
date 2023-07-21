@@ -25,16 +25,10 @@ class MacroTree:
             accumulate(numNotesInTrigger(t) for t in reversed(macro.getTriggers()))
         )
         notesTillScriptExecution.reverse()
-        minArguments = (
-            macro.getArgumentDefinition().getArgumentNumberRange().getLowerBound()
-        )
-        maxArguments = (
-            macro.getArgumentDefinition().getArgumentNumberRange().getUpperBound()
-        )
-
         for trigger, notes in zip(macro.getTriggers(), notesTillScriptExecution):
-            currentNode.updateMinNotesTillScriptExecution(notes + minArguments)
-            currentNode.updateMaxNotesTillScriptExecution(notes + maxArguments)
+            currentNode.updateNotesTillScriptExecution(
+                macro.getArgumentDefinition(), offset=notes
+            )
             if currentNode.hasBranch(trigger):
                 currentNode = currentNode.getBranch(trigger)
             else:
@@ -46,20 +40,32 @@ class MacroTree:
             return
         self.recurseMacroTreeAndExecuteMacros(self.root, 0, playedNotes)
 
-    def executeScript(self, script):
+    def executeScript(self, script, interpreter):
         try:
-            subprocess.Popen(script, shell=True)
+            process = subprocess.Popen(
+                interpreter if interpreter else script,
+                stdin=subprocess.PIPE if interpreter else None,
+                text=True,
+                shell=True,
+                start_new_session=True,
+            )
+            if interpreter:
+                process.stdin.write(script)
+                process.stdin.close()
         except Exception as exception:
             logError(f"failed to run script, {exceptionStr(exception)}")
 
     def executeNoArgScripts(self, currentNode):
         for script, argumentDefinition in currentNode.getScripts():
+            scriptText = script.getScript()
             if argumentDefinition:
                 if not argumentDefinition.numArgumentsAllowed(0):
                     continue
                 if argumentDefinition.getReplaceString():
-                    script = script.replace(argumentDefinition.getReplaceString(), "")
-            self.executeScript(script)
+                    scriptText = scriptText.replace(
+                        argumentDefinition.getReplaceString(), ""
+                    )
+            self.executeScript(scriptText, script.getInterpreter())
 
     def executeScripts(self, currentNode, playedNotes, position):
         for script, argumentDefinition in currentNode.getScripts():
@@ -85,12 +91,12 @@ class MacroTree:
                 )
             argumentString = " ".join(argumentGenerator)
             if replaceString:
-                command = script.replace(replaceString, argumentString)
+                scriptText = script.getScript().replace(replaceString, argumentString)
             elif not argumentString.isspace():
-                command = f"{script} {argumentString}"
+                scriptText = f"{script.getScript()} {argumentString}"
             else:
-                command = script
-            self.executeScript(command)
+                scriptText = script
+            self.executeScript(scriptText, script.getInterpreter())
 
     def recurseMacroTreeAndExecuteMacros(self, currentNode, position, playedNotes):
         keysLeftToProcess = len(playedNotes) - position
