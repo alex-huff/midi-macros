@@ -190,7 +190,7 @@ class MidiMacros:
             config[triggerType] = trigger
         except ParseError as parseError:
             raise ConfigException(
-                f"failed to parse {triggerType}: {parseError.message}",
+                f"{parseError.getSourceString()}\nfailed to parse {triggerType}: {parseError.message}",
                 profile,
                 subprofile,
             )
@@ -206,7 +206,7 @@ class MidiMacros:
             with open(macroFilePath, "r") as macroFile:
                 return parseMacroFile(macroFile, os.path.basename(macroFilePath), profile, subprofile)
         except ParseError as parseError:
-            raise ConfigException(parseError.message, profile, subprofile)
+            raise ConfigException(f"{parseError.getSourceString()}\n{parseError.message}", profile, subprofile)
         except (FileNotFoundError, IsADirectoryError):
             raise ConfigException(
                 f"invalid macro file: {macroFilePath}", profile, subprofile

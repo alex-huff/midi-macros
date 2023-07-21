@@ -7,7 +7,7 @@ class ParseBuffer:
         self.source = source
         self.commentChar = commentChar
         if not self.lines:
-            raise ParseError(f"{self.source} is empty")
+            raise ValueError("lines is empty")
         self.currentLineNumber = 0
         self.currentLine = self.lines[self.currentLineNumber]
         self.positionInLine = 0
@@ -23,8 +23,10 @@ class ParseBuffer:
         try:
             return self.currentLine.__getitem__(key)
         except IndexError:
+            self.jump((self.currentLineNumber, len(self)))
             raise ParseError(
-                f'unexpectedly reached end of line.\n{self.currentLine}\n{" " * len(self) + "^"}'
+                f'unexpectedly reached end of line.\n{self.currentLine}\n{" " * len(self) + "^"}',
+                self
             )
 
     def at(self):

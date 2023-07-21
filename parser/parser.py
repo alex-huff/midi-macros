@@ -33,13 +33,15 @@ def generateParseError(parseBuffer, expected, got):
     expectedString = f"expected: {expected}\n" if expected else ""
     gotString = f"got: {got}\n" if got else ""
     raise ParseError(
-        f"\n{expectedString}{gotString}while parsing:\n{parseBuffer}\n{generateArrowLine(parseBuffer)}"
+        f"{expectedString}{gotString}while parsing:\n{parseBuffer}\n{generateArrowLine(parseBuffer)}",
+        parseBuffer,
     )
 
 
 def generateInvalidMIDIError(parseBuffer, note):
     raise ParseError(
-        f"\ninvalid MIDI note: {note}\n{parseBuffer}\n{generateArrowLine(parseBuffer)}"
+        f"invalid MIDI note: {note}\n{parseBuffer}\n{generateArrowLine(parseBuffer)}",
+        parseBuffer,
     )
 
 
@@ -249,7 +251,9 @@ def parseOneOfExpectedStrings(parseBuffer, expectedStrings, otherExpected=None):
             parseBuffer.skip(len(expected))
             return expected
     otherExpectedSpecifier = f" or {otherExpected}" if otherExpected else ""
-    generateParseError(parseBuffer, f'one of {"|".join(expectedStrings)}{otherExpectedSpecifier}', None)
+    generateParseError(
+        parseBuffer, f'one of {"|".join(expectedStrings)}{otherExpectedSpecifier}', None
+    )
 
 
 def parseArgumentDefinition(parseBuffer):
@@ -295,18 +299,14 @@ def parseArgumentNumberRange(parseBuffer):
     if parseBuffer.getCurrentChar().isdigit():
         upperBound = parsePositiveInteger(parseBuffer)
     if parseBuffer.getCurrentChar() != "]":
-        generateParseError(
-            parseBuffer, "number or ]", parseBuffer.getCurrentChar()
-        )
+        generateParseError(parseBuffer, "number or ]", parseBuffer.getCurrentChar())
     parseBuffer.skip(1)
     return MacroArgumentNumberRange(lowerBound, upperBound)
 
 
 def parsePositiveInteger(parseBuffer):
     if not parseBuffer.getCurrentChar().isdigit():
-        generateParseError(
-            parseBuffer, "positive number", parseBuffer.getCurrentChar()
-        )
+        generateParseError(parseBuffer, "positive number", parseBuffer.getCurrentChar())
     startPosition = parseBuffer.at()
     while not parseBuffer.atEndOfLine() and parseBuffer.getCurrentChar().isdigit():
         parseBuffer.skip(1)
@@ -329,7 +329,9 @@ def parseArgumentDefinitionBody(parseBuffer):
     if parseBuffer.getCurrentChar() == "f":
         argumentFormat = parseFStringArgumentFormat(parseBuffer)
     else:
-        argumentFormat = parseArgumentFormat(parseBuffer, otherExpected="f-string argument format or replace string")
+        argumentFormat = parseArgumentFormat(
+            parseBuffer, otherExpected="f-string argument format or replace string"
+        )
     if parseBuffer.getCurrentChar() != ")":
         generateParseError(parseBuffer, ")", parseBuffer.getCurrentChar())
     parseBuffer.skip(1)
@@ -337,11 +339,15 @@ def parseArgumentDefinitionBody(parseBuffer):
 
 
 def parseQuotedString(parseBuffer, quoteChar='"'):
+    stringStart = parseBuffer.at()
     rawString = readQuotedString(parseBuffer, quoteChar)
     try:
         return decodeCStyleEscapes(rawString)
     except UnicodeDecodeError as ude:
-        raise ParseError(f"failed to decode string: {rawString}, {ude.reason}")
+        parseBuffer.jump(stringStart)
+        raise ParseError(
+            f"failed to decode string: {rawString}, {ude.reason}", parseBuffer
+        )
 
 
 def readQuotedString(parseBuffer, quoteChar='"'):
