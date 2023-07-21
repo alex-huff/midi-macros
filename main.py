@@ -175,7 +175,7 @@ class MidiMacros:
         try:
             profileSpecifier = f"@{profile}" if profile else ""
             subprofileSpecifier = f"@{subprofile}" if subprofile else ""
-            lines = config[triggerType].split("\n")
+            lines = config[triggerType].splitlines()
             parseBuffer = ParseBuffer(lines, f"{triggerType}{subprofileSpecifier}{profileSpecifier}")
             parseBuffer.skipTillData()
             trigger = parseTriggers(parseBuffer)
@@ -183,14 +183,14 @@ class MidiMacros:
             if not parseBuffer.atEndOfBuffer():
                 extraData = parseBuffer.stringFrom(parseBuffer.at(), None)
                 raise ConfigException(
-                    f"extraneous data in {triggerType}: {extraData}",
+                    f"extraneous data in {triggerType}:\n{extraData}",
                     profile,
                     subprofile,
                 )
             config[triggerType] = trigger
         except ParseError as parseError:
             raise ConfigException(
-                f"{parseError.getSourceString()}\nfailed to parse {triggerType}: {parseError.message}",
+                f"{parseError.getSourceString()}\nfailed to parse {triggerType}:\n{parseError.message}",
                 profile,
                 subprofile,
             )
@@ -206,7 +206,7 @@ class MidiMacros:
             with open(macroFilePath, "r") as macroFile:
                 return parseMacroFile(macroFile, os.path.basename(macroFilePath), profile, subprofile)
         except ParseError as parseError:
-            raise ConfigException(f"{parseError.getSourceString()}\n{parseError.message}", profile, subprofile)
+            raise ConfigException(f"{parseError.getSourceString()}\nfailed to parse macro tree:\n{parseError.message}", profile, subprofile)
         except (FileNotFoundError, IsADirectoryError):
             raise ConfigException(
                 f"invalid macro file: {macroFilePath}", profile, subprofile
