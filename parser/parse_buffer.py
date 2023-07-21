@@ -23,10 +23,10 @@ class ParseBuffer:
         try:
             return self.currentLine.__getitem__(key)
         except IndexError:
-            self.jump((self.currentLineNumber, len(self)))
+            self.jumpToEndOfLine()
             raise ParseError(
-                f'unexpectedly reached end of line.\n{self.currentLine}\n{" " * len(self) + "^"}',
-                self
+                f'unexpectedly reached end of line\n{self.currentLine}\n{" " * len(self) + "^"}',
+                self,
             )
 
     def at(self):
@@ -47,25 +47,22 @@ class ParseBuffer:
         self.currentLine = self.lines[self.currentLineNumber]
         self.positionInLine = positionInLine
 
+    def jumpToEndOfLine(self):
+        self.positionInLine = len(self)
+
     def skipComment(self):
         self.eatWhitespace()
-        if (
-            self.positionInLine < len(self)
-            and self.getCurrentChar() == self.commentChar
-        ):
-            self.positionInLine = len(self)
+        if not self.atEndOfLine() and self.getCurrentChar() == self.commentChar:
+            self.jumpToEndOfLine()
 
     def skipTillData(self):
         self.skipComment()
-        while (
-            self.positionInLine == len(self)
-            and self.currentLineNumber < len(self.lines) - 1
-        ):
+        while self.atEndOfLine() and self.currentLineNumber < len(self.lines) - 1:
             self.newline()
             self.skipComment()
 
     def atEndOfLine(self):
-        return self.positionInLine == len(self)
+        return self.positionInLine >= len(self)
 
     def atEndOfBuffer(self):
         return self.currentLineNumber == len(self.lines) - 1 and self.atEndOfLine()
@@ -87,10 +84,23 @@ class ParseBuffer:
         return "\n".join(lines)
 
     def eatWhitespace(self):
-        while self.positionInLine < len(self) and self.getCurrentChar().isspace():
+        self.readWhitespace(keep=False)
+
+    def readWhitespace(self, keep=True):
+        startPosition = self.at()
+        while not self.atEndOfLine() and self.getCurrentChar().isspace():
             self.positionInLine += 1
+        if keep:
+            return self.stringFrom(startPosition, self.at())
+
+    def readRestOfLine(self):
+        startPositionInLine = self.positionInLine
+        self.jumpToEndOfLine()
+        return self[startPositionInLine:]
 
     def newline(self):
         self.currentLineNumber += 1
-        self.currentLine = self.lines[self.currentLineNumber]
         self.positionInLine = 0
+        if self.currentLineNumber == len(self.lines):
+            raise ParseError("unexpectedly reached end of file", self)
+        self.currentLine = self.lines[self.currentLineNumber]

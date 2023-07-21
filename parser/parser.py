@@ -450,8 +450,39 @@ def parseFStringArgumentFormat(parseBuffer):
     return argumentFormat
 
 
+def parseMultilineScript(parseBuffer):
+    if not parseBuffer.getCurrentChar() == "{":
+        generateParseError(parseBuffer, "multi-line script", None)
+    parseBuffer.skip(1)
+    parseBuffer.eatWhitespace()
+    if not parseBuffer.atEndOfLine():
+        generateParseError(
+            parseBuffer,
+            None,
+            "illegal non-whitespace character after multi-line script open. Script must start on next line after indent",
+        )
+    parseBuffer.newline()
+    if parseBuffer.getCurrentChar() == "}":
+        parseBuffer.skip(1)
+        return ""
+    indent = parseBuffer.readWhitespace()
+    if not indent:
+        generateParseError(parseBuffer, "indent or }", parseBuffer.getCurrentChar())
+    lines = [parseBuffer.readRestOfLine()]
+    parseBuffer.newline()
+    while not parseBuffer.getCurrentChar() == "}":
+        if not bufferHasSubstring(parseBuffer, indent):
+            if not parseBuffer.getCurrentChar().isspace():
+                generateParseError(parseBuffer, "indent or }", parseBuffer.getCurrentChar())
+            generateParseError(parseBuffer, None, "inconsistent indentation")
+        parseBuffer.skip(len(indent))
+        lines.append(parseBuffer.readRestOfLine())
+        parseBuffer.newline()
+    parseBuffer.skip(1)
+    return "\n".join(lines)
+
+
 def parseScripts(parseBuffer):
-    startPosition = parseBuffer.at()
-    startLine, _ = startPosition
-    parseBuffer.jump((startLine, len(parseBuffer)))
-    return parseBuffer.stringFrom(startPosition, (startLine, None))
+    if parseBuffer.getCurrentChar() == "{":
+        return parseMultilineScript(parseBuffer)
+    return parseBuffer.readRestOfLine()
