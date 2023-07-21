@@ -71,9 +71,9 @@ def parseMacroAndScript(parseBuffer):
     argumentDefinition = ZERO_ARGUMENT_DEFINITION
     if parseBuffer.getCurrentChar() == "*":
         argumentDefinition = parseArgumentDefinition(parseBuffer)
-    parseBuffer.eatWhitespace()
+    parseBuffer.skipTillData()
     eatArrow(parseBuffer)
-    parseBuffer.eatWhitespace()
+    parseBuffer.skipTillData()
     script = parseScripts(parseBuffer)
     return Macro(triggers, argumentDefinition), script
 
@@ -95,10 +95,10 @@ def eatArrow(parseBuffer):
 def parseTriggers(parseBuffer):
     triggers = []
     while True:
-        parseBuffer.eatWhitespace()
+        parseBuffer.skipTillData()
         subMacro = parseSubMacro(parseBuffer)
         triggers.append(subMacro)
-        parseBuffer.eatWhitespace()
+        parseBuffer.skipTillData()
         if parseBuffer.atEndOfLine() or parseBuffer.getCurrentChar() != "+":
             return triggers
         parseBuffer.skip(1)
@@ -120,10 +120,10 @@ def parseChord(parseBuffer):
     parseBuffer.skip(1)
     chord = []
     while True:
-        parseBuffer.eatWhitespace()
+        parseBuffer.skipTillData()
         note = parseNote(parseBuffer)
         chord.append(note)
-        parseBuffer.eatWhitespace()
+        parseBuffer.skipTillData()
         if parseBuffer.getCurrentChar() not in "|)":
             generateParseError(parseBuffer, "| or )", parseBuffer.getCurrentChar())
         if parseBuffer.getCurrentChar() == ")":
@@ -240,12 +240,13 @@ def parseMatchPredicate(parseBuffer):
     return matchPredicate
 
 
-def parseOneOfExpectedStrings(parseBuffer, expectedStrings):
+def parseOneOfExpectedStrings(parseBuffer, expectedStrings, otherExpected=None):
     for expected in expectedStrings:
         if bufferHasSubstring(parseBuffer, expected):
             parseBuffer.skip(len(expected))
             return expected
-    generateParseError(parseBuffer, f'one of {"|".join(expectedStrings)}', None)
+    otherExpectedSpecifier = f" or {otherExpected}" if otherExpected else ""
+    generateParseError(parseBuffer, f'one of {"|".join(expectedStrings)}{otherExpectedSpecifier}', None)
 
 
 def parseArgumentDefinition(parseBuffer):
@@ -317,19 +318,15 @@ def parseArgumentDefinitionBody(parseBuffer):
             parseBuffer.getCurrentChar(),
         )
     parseBuffer.skip(1)
-    parseBuffer.eatWhitespace()
     replaceString = None
     if parseBuffer.getCurrentChar() == '"':
         replaceString = parseQuotedString(parseBuffer)
         replaceString = replaceString if replaceString else None
-        parseBuffer.eatWhitespace()
         eatArrow(parseBuffer)
-        parseBuffer.eatWhitespace()
     if parseBuffer.getCurrentChar() == "f":
         argumentFormat = parseFStringArgumentFormat(parseBuffer)
     else:
-        argumentFormat = parseArgumentFormat(parseBuffer)
-    parseBuffer.eatWhitespace()
+        argumentFormat = parseArgumentFormat(parseBuffer, otherExpected="f-string argument format or replace string")
     if parseBuffer.getCurrentChar() != ")":
         generateParseError(parseBuffer, ")", parseBuffer.getCurrentChar())
     parseBuffer.skip(1)
@@ -396,9 +393,9 @@ def decodeCStyleEscapes(string):
     return string.encode("latin1", "backslashreplace").decode("unicode-escape")
 
 
-def parseArgumentFormat(parseBuffer):
+def parseArgumentFormat(parseBuffer, otherExpected=None):
     formatString = parseOneOfExpectedStrings(
-        parseBuffer, [n for n in FORMATS.keys()]
+        parseBuffer, [n for n in FORMATS.keys()], otherExpected=otherExpected
     )
     return FORMATS[formatString]
 
