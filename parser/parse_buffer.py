@@ -39,7 +39,8 @@ class ParseBuffer:
     def skip(self, number):
         self.positionInLine += number
 
-    def jump(self, lineNumber, positionInLine):
+    def jump(self, position):
+        lineNumber, positionInLine = position
         self.currentLineNumber = lineNumber
         self.currentLine = self.lines[self.currentLineNumber]
         self.positionInLine = positionInLine

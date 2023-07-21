@@ -59,6 +59,7 @@ def parseMacroFile(macroFile, source, profile, subprofile=None):
 
 def parseMacroAndScript(parseBuffer):
     triggers = parseTriggers(parseBuffer)
+    parseBuffer.skipTillData()
     if (
         parseBuffer.getCurrentChar() != "*"
         and parseBuffer.getCurrentChar() not in ARROW_START_CHARS
@@ -98,8 +99,10 @@ def parseTriggers(parseBuffer):
         parseBuffer.skipTillData()
         subMacro = parseSubMacro(parseBuffer)
         triggers.append(subMacro)
+        afterSubMacro = parseBuffer.at()
         parseBuffer.skipTillData()
         if parseBuffer.atEndOfLine() or parseBuffer.getCurrentChar() != "+":
+            parseBuffer.jump(afterSubMacro)
             return triggers
         parseBuffer.skip(1)
 
@@ -151,7 +154,7 @@ def parseNote(parseBuffer):
     else:
         note = parseASPNNote(parseBuffer)
     if not inMidiRange(note):
-        parseBuffer.jump(*startPosition)
+        parseBuffer.jump(startPosition)
         generateInvalidMIDIError(parseBuffer, note)
     matchPredicate = "True"
     if not parseBuffer.atEndOfLine() and parseBuffer.getCurrentChar() == "{":
@@ -444,5 +447,5 @@ def parseFStringArgumentFormat(parseBuffer):
 def parseScripts(parseBuffer):
     startPosition = parseBuffer.at()
     startLine, _ = startPosition
-    parseBuffer.jump(startLine, len(parseBuffer))
+    parseBuffer.jump((startLine, len(parseBuffer)))
     return parseBuffer.stringFrom(startPosition, (startLine, None))
