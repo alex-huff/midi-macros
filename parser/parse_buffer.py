@@ -41,6 +41,16 @@ class ParseBuffer:
     def skip(self, number):
         self.positionInLine += number
 
+    def skipTillChar(self, char):
+        while not self.getCurrentChar() == char:
+            self.skip(1)
+
+    def skipTillData(self):
+        self.skipComment()
+        while self.atEndOfLine() and self.currentLineNumber < len(self.lines) - 1:
+            self.newline()
+            self.skipComment()
+
     def jump(self, position):
         lineNumber, positionInLine = position
         self.currentLineNumber = lineNumber
@@ -54,12 +64,6 @@ class ParseBuffer:
         self.eatWhitespace()
         if not self.atEndOfLine() and self.getCurrentChar() == self.commentChar:
             self.jumpToEndOfLine()
-
-    def skipTillData(self):
-        self.skipComment()
-        while self.atEndOfLine() and self.currentLineNumber < len(self.lines) - 1:
-            self.newline()
-            self.skipComment()
 
     def atEndOfLine(self):
         return self.positionInLine >= len(self)

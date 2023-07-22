@@ -60,10 +60,15 @@ ZERO_MANR = MacroArgumentNumberRange(0, 0)
 
 class MacroArgumentDefinition:
     def __init__(
-        self, argumentFormat, replaceString=None, argumentNumberRange=UNBOUNDED_MANR
+        self,
+        argumentFormat,
+        replaceString=None,
+        argumentSeperator=" ",
+        argumentNumberRange=UNBOUNDED_MANR,
     ):
         self.argumentFormat = argumentFormat
         self.replaceString = replaceString
+        self.argumentSeperator = argumentSeperator
         self.argumentNumberRange = argumentNumberRange
 
     def getArgumentFormat(self):
@@ -71,6 +76,9 @@ class MacroArgumentDefinition:
 
     def getReplaceString(self):
         return self.replaceString
+
+    def getArgumentSeperator(self):
+        return self.argumentSeperator
 
     def getArgumentNumberRange(self):
         return self.argumentNumberRange
@@ -82,18 +90,21 @@ class MacroArgumentDefinition:
         self.argumentNumberRange = argumentNumberRange
 
     def __str__(self):
-        argumentNumRangeString = f"[{self.argumentNumberRange.getLowerBound()}:{self.argumentNumberRange.getUpperBound()}]"
-        replaceDefinitionString = (
+        argumentNumRangeSpecifier = f"[{self.argumentNumberRange.getLowerBound()}:{self.argumentNumberRange.getUpperBound()}]"
+        replaceStringSpecifier = (
             f'"{self.replaceString}"→' if self.replaceString else ""
         )
-        argumentFormatString = (
+        argumentSeperatorSpecifier = (
+            f'["{self.argumentSeperator}"]' if self.argumentSeperator != " " else ""
+        )
+        argumentFormatSpecifier = (
             self.argumentFormat.getName()
             if isinstance(self.argumentFormat, MacroArgumentFormat)
             else "|".join(
                 (s if isinstance(s, str) else str(s) for s in self.argumentFormat)
             )
         )
-        return f"*{argumentNumRangeString}({replaceDefinitionString}{argumentFormatString})"
+        return f"*{argumentNumRangeSpecifier}({replaceStringSpecifier}{argumentSeperatorSpecifier}{argumentFormatSpecifier})"
 
 
 ZERO_ARGUMENT_DEFINITION = MacroArgumentDefinition(

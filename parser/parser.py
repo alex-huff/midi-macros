@@ -55,8 +55,14 @@ def parseMacroFile(macroFile, source, profile, subprofile=None):
     parseBuffer = ParseBuffer(lines, source)
     while not parseBuffer.atEndOfBuffer():
         macro, script = parseMacroAndScript(parseBuffer)
-        interpreterSpecification = f'("{script.getInterpreter()}")' if script.getInterpreter() else ""
-        logInfo(f"adding macro: {macro} {interpreterSpecification}→ {script.getScript()}", profile, subprofile)
+        interpreterSpecification = (
+            f'("{script.getInterpreter()}")' if script.getInterpreter() else ""
+        )
+        logInfo(
+            f"adding macro: {macro} {interpreterSpecification}→ {script.getScript()}",
+            profile,
+            subprofile,
+        )
         macroTree.addMacroToTree(macro, script)
         parseBuffer.skipTillData()
     return macroTree
@@ -72,7 +78,7 @@ def parseMacroAndScript(parseBuffer):
     ):
         generateParseError(
             parseBuffer,
-            "+, argument definition, interpreter specification, or arrow operator (->, →)",
+            "+, argument definition, interpreter, or arrow operator (->, →)",
             parseBuffer.getCurrentChar(),
         )
     argumentDefinition = ZERO_ARGUMENT_DEFINITION
@@ -85,18 +91,12 @@ def parseMacroAndScript(parseBuffer):
         ):
             generateParseError(
                 parseBuffer,
-                "interpreter specification, or arrow operator (->, →)",
+                "interpreter, or arrow operator (->, →)",
                 parseBuffer.getCurrentChar(),
             )
     interpreter = None
     if parseBuffer.getCurrentChar() == "(":
-        interpreter = parseInterpreterSpecification(parseBuffer)
-        if parseBuffer.getCurrentChar() not in ARROW_START_CHARS:
-            generateParseError(
-                parseBuffer,
-                "arrow operator (->, →)",
-                parseBuffer.getCurrentChar(),
-            )
+        interpreter = parseInterpreter(parseBuffer)
     eatArrow(parseBuffer)
     parseBuffer.skipTillData()
     script = Script(parseScripts(parseBuffer), interpreter)
@@ -351,20 +351,34 @@ def parseArgumentDefinitionBody(parseBuffer):
         )
     parseBuffer.skip(1)
     replaceString = None
+    parsedReplaceString = False
     if parseBuffer.getCurrentChar() == '"':
         replaceString = parseQuotedString(parseBuffer)
         replaceString = replaceString if replaceString else None
         eatArrow(parseBuffer)
-    if parseBuffer.getCurrentChar() == "f":
+        parsedReplaceString = True
+    argumentSeperator = " "
+    parsedArgumentSeperator = False
+    if parseBuffer.getCurrentChar() == "[":
+        argumentSeperator = parseArgumentSeperator(parseBuffer)
+        parsedArgumentSeperator = True
+    if bufferHasSubstring(parseBuffer, 'f"'):
         argumentFormat = parseFStringArgumentFormat(parseBuffer)
     else:
+        replaceStringExpectedSpecifier = (
+            ", replace string" if not parsedReplaceString else ""
+        )
+        argumentSeperatorExpectedSpecifier = (
+            " or argument seperator" if not parsedArgumentSeperator else ""
+        )
         argumentFormat = parseArgumentFormat(
-            parseBuffer, otherExpected="f-string argument format or replace string"
+            parseBuffer,
+            otherExpected=f"f-string argument format{replaceStringExpectedSpecifier}{argumentSeperatorExpectedSpecifier}",
         )
     if parseBuffer.getCurrentChar() != ")":
         generateParseError(parseBuffer, ")", parseBuffer.getCurrentChar())
     parseBuffer.skip(1)
-    return MacroArgumentDefinition(argumentFormat, replaceString)
+    return MacroArgumentDefinition(argumentFormat, replaceString, argumentSeperator)
 
 
 def parseQuotedString(parseBuffer, quoteChar='"'):
@@ -395,6 +409,22 @@ def readQuotedString(parseBuffer, quoteChar='"'):
     endPosition = parseBuffer.at()
     parseBuffer.skip(1)
     return parseBuffer.stringFrom(startPosition, endPosition)
+
+
+def parseArgumentSeperator(parseBuffer):
+    if parseBuffer.getCurrentChar() != "[":
+        generateParseError(parseBuffer, "argument seperator", parseBuffer.getCurrentChar())
+    parseBuffer.skip(1)
+    if parseBuffer.getCurrentChar() == '"':
+        seperator = parseQuotedString(parseBuffer)
+        if not parseBuffer.getCurrentChar() == "]":
+            generateParseError(parseBuffer, "]", parseBuffer.getCurrentChar())
+    else:
+        startPosition = parseBuffer.at()
+        parseBuffer.skipTillChar("]")
+        seperator = parseBuffer.stringFrom(startPosition, parseBuffer.at())
+    parseBuffer.skip(1)
+    return seperator
 
 
 def bufferHasSubstring(parseBuffer, substring):
@@ -479,11 +509,9 @@ def parseFStringArgumentFormat(parseBuffer):
     return argumentFormat
 
 
-def parseInterpreterSpecification(parseBuffer):
+def parseInterpreter(parseBuffer):
     if not parseBuffer.getCurrentChar() == "(":
-        generateParseError(
-            parseBuffer, "interpreter specification", parseBuffer.getCurrentChar()
-        )
+        generateParseError(parseBuffer, "interpreter", parseBuffer.getCurrentChar())
     parseBuffer.skip(1)
     if parseBuffer.getCurrentChar() == '"':
         interpreter = parseQuotedString(parseBuffer)
@@ -491,8 +519,7 @@ def parseInterpreterSpecification(parseBuffer):
             generateParseError(parseBuffer, ")", parseBuffer.getCurrentChar())
     else:
         startPosition = parseBuffer.at()
-        while not parseBuffer.getCurrentChar() == ")":
-            parseBuffer.skip(1)
+        parseBuffer.skipTillChar(")")
         interpreter = parseBuffer.stringFrom(startPosition, parseBuffer.at())
     parseBuffer.skip(1)
     return interpreter

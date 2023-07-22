@@ -89,7 +89,7 @@ class MacroTree:
                     )
                     for playedNote in islice(playedNotes, position, None)
                 )
-            argumentString = " ".join(argumentGenerator)
+            argumentString = argumentDefinition.getArgumentSeperator().join(argumentGenerator)
             if replaceString:
                 scriptText = script.getScript().replace(replaceString, argumentString)
             elif not argumentString.isspace():
