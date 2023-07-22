@@ -192,7 +192,7 @@ class MidiMacros:
             config[triggerType] = trigger
         except ParseError as parseError:
             raise ConfigException(
-                f"{parseError.getSourceString()}\nfailed to parse {triggerType}:\n{parseError.message}",
+                f"{parseError.getSourceSpecifier()}\nfailed to parse {triggerType}:\n{parseError.message}",
                 profile,
                 subprofile,
             )
@@ -211,7 +211,7 @@ class MidiMacros:
                 )
         except ParseError as parseError:
             raise ConfigException(
-                f"{parseError.getSourceString()}\nfailed to parse macro tree:\n{parseError.message}",
+                f"{parseError.getSourceSpecifier()}\nfailed to parse macro tree:\n{parseError.message}",
                 profile,
                 subprofile,
             )

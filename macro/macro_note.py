@@ -16,10 +16,10 @@ class MacroNote:
         return (self.note, self.matchPredicate)
 
     def __str__(self):
-        matchPredicateString = (
+        matchPredicateSpecifier = (
             f"{{{self.matchPredicate}}}" if self.matchPredicate != "True" else ""
         )
-        return f"{aspn.midiNoteToASPN(self.note)}{matchPredicateString}"
+        return f"{aspn.midiNoteToASPN(self.note)}{matchPredicateSpecifier}"
 
     def __eq__(self, other):
         if isinstance(other, MacroNote):
