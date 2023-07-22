@@ -9,14 +9,23 @@ from macro.tree.macro_tree import MacroTree
 from macro.macro_note import MacroNote
 from macro.macro_chord import MacroChord
 from macro.macro import Macro
-from script.script import Script
+from script.script import *
 
 
 BASE_PITCH_REGEX = re.compile(r"[A-Ga-g]")
 ARROW_START_CHARS = "→-"
 MODIFIERS = "#♯b♭𝄪𝄫"
-ARGUMENT_FORMAT_SHORTHANDS = "mpaAvt"
-ARGUMENT_FORMAT_SHORTHANDS_TO_ARGUMENT_FORMAT = {
+INDENT = "\t"
+ARGUMENT_FORMATS = {
+    "MIDI": FORMAT_MIDI,
+    "ASPN": FORMAT_ASPN,
+    "ASPN_UNICODE": FORMAT_ASPN_UNICODE,
+    "PIANO": FORMAT_PIANO,
+    "VELOCITY": FORMAT_VELOCITY,
+    "TIME": FORMAT_TIME,
+    "NONE": FORMAT_NONE,
+}
+ARGUMENT_FORMAT_SHORTHANDS = {
     "m": FORMAT_MIDI,
     "p": FORMAT_PIANO,
     "a": FORMAT_ASPN,
@@ -24,25 +33,20 @@ ARGUMENT_FORMAT_SHORTHANDS_TO_ARGUMENT_FORMAT = {
     "v": FORMAT_VELOCITY,
     "t": FORMAT_TIME,
 }
-INDENT = "\t"
-
-
-def generateArrowLine(parseBuffer):
-    return " " * parseBuffer.at()[1] + "^"
 
 
 def generateParseError(parseBuffer, expected, got):
     expectedString = f"expected: {expected}\n" if expected else ""
     gotString = f"got: {got}\n" if got else ""
     raise ParseError(
-        f"{expectedString}{gotString}while parsing:\n{parseBuffer}\n{generateArrowLine(parseBuffer)}",
+        f"{expectedString}{gotString}while parsing:\n{parseBuffer}\n{parseBuffer.generateArrowLine()}",
         parseBuffer,
     )
 
 
 def generateInvalidMIDIError(parseBuffer, note):
     raise ParseError(
-        f"invalid MIDI note: {note}\n{parseBuffer}\n{generateArrowLine(parseBuffer)}",
+        f"invalid MIDI note: {note}\n{parseBuffer}\n{parseBuffer.generateArrowLine()}",
         parseBuffer,
     )
 
@@ -54,53 +58,57 @@ def parseMacroFile(macroFile, source, profile, subprofile=None):
         return macroTree
     parseBuffer = ParseBuffer(lines, source)
     while not parseBuffer.atEndOfBuffer():
-        macro, script = parseMacroAndScript(parseBuffer)
-        interpreterSpecification = (
-            f'("{script.getInterpreter()}")' if script.getInterpreter() else ""
-        )
+        macro = parseMacro(parseBuffer)
         logInfo(
-            f"adding macro: {macro} {interpreterSpecification}→ {script.getScript()}",
+            f"adding macro: {macro}",
             profile,
             subprofile,
         )
-        macroTree.addMacroToTree(macro, script)
+        macroTree.addMacroToTree(macro)
         parseBuffer.skipTillData()
     return macroTree
 
 
-def parseMacroAndScript(parseBuffer):
+def parseMacro(parseBuffer):
     triggers = parseTriggers(parseBuffer)
     parseBuffer.skipTillData()
-    if (
-        parseBuffer.getCurrentChar() != "*"
-        and parseBuffer.getCurrentChar() != "("
-        and parseBuffer.getCurrentChar() not in ARROW_START_CHARS
-    ):
-        generateParseError(
-            parseBuffer,
-            "+, argument definition, interpreter, or arrow operator (->, →)",
-            parseBuffer.getCurrentChar(),
-        )
     argumentDefinition = ZERO_ARGUMENT_DEFINITION
+    parsedArgumentDefinition = False
     if parseBuffer.getCurrentChar() == "*":
         argumentDefinition = parseArgumentDefinition(parseBuffer)
         parseBuffer.skipTillData()
-        if (
-            parseBuffer.getCurrentChar() != "("
-            and parseBuffer.getCurrentChar() not in ARROW_START_CHARS
-        ):
-            generateParseError(
-                parseBuffer,
-                "interpreter, or arrow operator (->, →)",
-                parseBuffer.getCurrentChar(),
-            )
+        parsedArgumentDefinition = True
     interpreter = None
+    parsedInterpreter = False
     if parseBuffer.getCurrentChar() == "(":
         interpreter = parseInterpreter(parseBuffer)
+        parsedInterpreter = True
+    scriptFlags = NONE
+    parsedScriptFlags = False
+    if parseBuffer.getCurrentChar() == "[":
+        scriptFlags = parseScriptFlags(parseBuffer)
+        parsedScriptFlags = True
+    if parseBuffer.getCurrentChar() not in ARROW_START_CHARS:
+        parsedAnything = any(
+            (parsedArgumentDefinition, parsedInterpreter, parsedScriptFlags)
+        )
+        plusExpectedSpecifier = "or +" if not parsedAnything else ""
+        argumentDefinitionExpectedSpecifier = (
+            "or argument definition" if not parsedAnything else ""
+        )
+        interpreterExpectedSpecifier = (
+            "or interpreter" if (not parsedInterpreter and not parsedScriptFlags) else ""
+        )
+        scriptFlagsExpectedSpecifier = "or script flags" if not parsedScriptFlags else ""
+        generateParseError(
+            parseBuffer,
+            f"arrow operator (->, →){plusExpectedSpecifier}{argumentDefinitionExpectedSpecifier}{interpreterExpectedSpecifier}{scriptFlagsExpectedSpecifier}",
+            parseBuffer.getCurrentChar(),
+        )
     eatArrow(parseBuffer)
     parseBuffer.skipTillData()
-    script = Script(parseScripts(parseBuffer), interpreter)
-    return Macro(triggers, argumentDefinition), script
+    script = Script(parseScript(parseBuffer), argumentDefinition, scriptFlags, interpreter)
+    return Macro(triggers, script)
 
 
 def eatArrow(parseBuffer):
@@ -125,7 +133,7 @@ def parseTriggers(parseBuffer):
         triggers.append(trigger)
         afterTrigger = parseBuffer.at()
         parseBuffer.skipTillData()
-        if parseBuffer.atEndOfLine() or parseBuffer.getCurrentChar() != "+":
+        if parseBuffer.atEndOfBuffer() or parseBuffer.getCurrentChar() != "+":
             parseBuffer.jump(afterTrigger)
             return triggers
         parseBuffer.skip(1)
@@ -267,24 +275,6 @@ def parseMatchPredicate(parseBuffer):
     return matchPredicate
 
 
-def parseOneOfExpectedStrings(parseBuffer, expectedStrings, otherExpected=None):
-    longestString = None
-    for expected in expectedStrings:
-        if bufferHasSubstring(parseBuffer, expected):
-            if not longestString:
-                longestString = expected
-            else:
-                if len(expected) > len(longestString):
-                    longestString = expected
-    if longestString:
-        parseBuffer.skip(len(longestString))
-        return longestString
-    otherExpectedSpecifier = f" or {otherExpected}" if otherExpected else ""
-    generateParseError(
-        parseBuffer, f'one of {"|".join(expectedStrings)}{otherExpectedSpecifier}', None
-    )
-
-
 def parseArgumentDefinition(parseBuffer):
     if parseBuffer.getCurrentChar() != "*":
         generateParseError(parseBuffer, "*", parseBuffer.getCurrentChar())
@@ -355,7 +345,9 @@ def parseArgumentDefinitionBody(parseBuffer):
     if parseBuffer.getCurrentChar() == '"':
         replaceString = parseQuotedString(parseBuffer)
         replaceString = replaceString if replaceString else None
+        parseBuffer.eatWhitespace()
         eatArrow(parseBuffer)
+        parseBuffer.eatWhitespace()
         parsedReplaceString = True
     argumentSeperator = " "
     parsedArgumentSeperator = False
@@ -365,16 +357,30 @@ def parseArgumentDefinitionBody(parseBuffer):
     if bufferHasSubstring(parseBuffer, 'f"'):
         argumentFormat = parseFStringArgumentFormat(parseBuffer)
     else:
-        replaceStringExpectedSpecifier = (
-            ", replace string" if not parsedReplaceString else ""
+        argumentFormatStringStart = parseBuffer.at()
+        parseBuffer.skipTillChar(")")
+        argumentFormatString = parseBuffer.stringFrom(
+            argumentFormatStringStart, parseBuffer.at()
         )
-        argumentSeperatorExpectedSpecifier = (
-            " or argument seperator" if not parsedArgumentSeperator else ""
-        )
-        argumentFormat = parseArgumentFormat(
-            parseBuffer,
-            otherExpected=f"f-string argument format{replaceStringExpectedSpecifier}{argumentSeperatorExpectedSpecifier}",
-        )
+        if not argumentFormatString in ARGUMENT_FORMATS:
+            replaceStringExpectedSpecifier = (
+                "or replace string"
+                if (not parsedReplaceString and not parsedArgumentSeperator)
+                else ""
+            )
+            argumentSeperatorExpectedSpecifier = (
+                "or argument seperator" if not parsedArgumentSeperator else ""
+            )
+            otherExpectedSpecifier = (
+                f"f-string argument format{replaceStringExpectedSpecifier}{argumentSeperatorExpectedSpecifier}",
+            )
+            parseBuffer.jump(argumentFormatStringStart)
+            generateParseError(
+                parseBuffer,
+                f'one of {"|".join(ARGUMENT_FORMATS.keys())} or {otherExpectedSpecifier}',
+                None,
+            )
+        argumentFormat = ARGUMENT_FORMATS[argumentFormatString]
     if parseBuffer.getCurrentChar() != ")":
         generateParseError(parseBuffer, ")", parseBuffer.getCurrentChar())
     parseBuffer.skip(1)
@@ -413,7 +419,9 @@ def readQuotedString(parseBuffer, quoteChar='"'):
 
 def parseArgumentSeperator(parseBuffer):
     if parseBuffer.getCurrentChar() != "[":
-        generateParseError(parseBuffer, "argument seperator", parseBuffer.getCurrentChar())
+        generateParseError(
+            parseBuffer, "argument seperator", parseBuffer.getCurrentChar()
+        )
     parseBuffer.skip(1)
     if parseBuffer.getCurrentChar() == '"':
         seperator = parseQuotedString(parseBuffer)
@@ -461,13 +469,6 @@ def decodeCStyleEscapes(string):
     return string.encode("latin1", "backslashreplace").decode("unicode-escape")
 
 
-def parseArgumentFormat(parseBuffer, otherExpected=None):
-    formatString = parseOneOfExpectedStrings(
-        parseBuffer, [n for n in FORMATS.keys()], otherExpected=otherExpected
-    )
-    return FORMATS[formatString]
-
-
 def parseFStringArgumentFormat(parseBuffer):
     if parseBuffer.getCurrentChar() != "f":
         generateParseError(
@@ -497,7 +498,7 @@ def parseFStringArgumentFormat(parseBuffer):
             addToStringBuilder(i)
             currentStringStart = i + 1
         elif escaping and char in ARGUMENT_FORMAT_SHORTHANDS:
-            macroArgumentFormat = ARGUMENT_FORMAT_SHORTHANDS_TO_ARGUMENT_FORMAT[char]
+            macroArgumentFormat = ARGUMENT_FORMAT_SHORTHANDS[char]
             if i - 1 > currentStringStart:
                 addToStringBuilder(i - 1)
                 addStringBuilderToArgumentFormat()
@@ -513,16 +514,49 @@ def parseInterpreter(parseBuffer):
     if not parseBuffer.getCurrentChar() == "(":
         generateParseError(parseBuffer, "interpreter", parseBuffer.getCurrentChar())
     parseBuffer.skip(1)
+    startPosition = parseBuffer.at()
+    parseBuffer.eatWhitespace()
     if parseBuffer.getCurrentChar() == '"':
         interpreter = parseQuotedString(parseBuffer)
+        parseBuffer.eatWhitespace()
         if not parseBuffer.getCurrentChar() == ")":
             generateParseError(parseBuffer, ")", parseBuffer.getCurrentChar())
     else:
-        startPosition = parseBuffer.at()
         parseBuffer.skipTillChar(")")
         interpreter = parseBuffer.stringFrom(startPosition, parseBuffer.at())
     parseBuffer.skip(1)
     return interpreter
+
+
+def parseScriptFlags(parseBuffer):
+    if not parseBuffer.getCurrentChar() == "[":
+        generateParseError(parseBuffer, "script flags", parseBuffer.getCurrentChar())
+    parseBuffer.skip(1)
+    afterSeperator = parseBuffer.at()
+    parseBuffer.eatWhitespace()
+    flags = NONE
+    while True:
+        if parseBuffer.getCurrentChar() in "|]":
+            parseBuffer.jump(afterSeperator)
+            generateParseError(parseBuffer, None, "empty script flag")
+        flagStart = parseBuffer.at()
+        parseBuffer.skipTillChar("|]", terminateOnWhitespace=True)
+        flag = parseBuffer.stringFrom(flagStart, parseBuffer.at())
+        if flag not in FLAGS:
+            parseBuffer.jump(flagStart)
+            generateParseError(parseBuffer, f"one of {'|'.join(FLAGS.keys())}", flag)
+        flags |= FLAGS[flag]
+        parseBuffer.eatWhitespace()
+        if parseBuffer.getCurrentChar() == "]":
+            break
+        elif parseBuffer.getCurrentChar() == "|":
+            parseBuffer.skip(1)
+            afterSeperator = parseBuffer.at()
+            parseBuffer.eatWhitespace()
+        else:
+            generateParseError(parseBuffer, "| or ]", parseBuffer.getCurrentChar())
+    parseBuffer.skip(1)
+    return flags
 
 
 def parseMultilineScript(parseBuffer):
@@ -533,7 +567,7 @@ def parseMultilineScript(parseBuffer):
             parseBuffer.getCurrentChar() if not parseBuffer.atEndOfLine() else None,
         )
     parseBuffer.skip(1)
-    parseBuffer.eatWhitespace()
+    parseBuffer.skipComment()
     if not parseBuffer.atEndOfLine():
         generateParseError(
             parseBuffer,
@@ -564,7 +598,7 @@ def parseMultilineScript(parseBuffer):
     return "\n".join(lines)
 
 
-def parseScripts(parseBuffer):
+def parseScript(parseBuffer):
     if parseBuffer.getCurrentChar() == "{":
         return parseMultilineScript(parseBuffer)
     return parseBuffer.readRestOfLine()

@@ -25,9 +25,12 @@ class ParseBuffer:
         except IndexError:
             self.jumpToEndOfLine()
             raise ParseError(
-                f'unexpectedly reached end of line\n{self.currentLine}\n{" " * len(self) + "^"}',
+                f'unexpectedly reached end of line\n{self.currentLine}\n{self.generateArrowLine()}',
                 self,
             )
+
+    def generateArrowLine(self):
+        return " " * self.at()[1] + "^"
 
     def at(self):
         return (self.currentLineNumber, self.positionInLine)
@@ -41,8 +44,11 @@ class ParseBuffer:
     def skip(self, number):
         self.positionInLine += number
 
-    def skipTillChar(self, char):
-        while not self.getCurrentChar() == char:
+    def skipTillChar(self, chars, terminateOnWhitespace=False):
+        while not (
+            self.getCurrentChar() in chars
+            or (terminateOnWhitespace and self.getCurrentChar().isspace())
+        ):
             self.skip(1)
 
     def skipTillData(self):

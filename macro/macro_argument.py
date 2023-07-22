@@ -28,15 +28,6 @@ FORMAT_PIANO = MacroArgumentFormat(lambda pn: str(pn.getNote() - 20), "PIANO")
 FORMAT_VELOCITY = MacroArgumentFormat(lambda pn: str(pn.getVelocity()), "VELOCITY")
 FORMAT_TIME = MacroArgumentFormat(lambda pn: str(pn.getTime()), "TIME")
 FORMAT_NONE = MacroArgumentFormat(lambda _: "", "NONE")
-FORMATS = {
-    "MIDI": FORMAT_MIDI,
-    "ASPN": FORMAT_ASPN,
-    "ASPN_UNICODE": FORMAT_ASPN_UNICODE,
-    "PIANO": FORMAT_PIANO,
-    "VELOCITY": FORMAT_VELOCITY,
-    "TIME": FORMAT_TIME,
-    "NONE": FORMAT_NONE,
-}
 
 
 class MacroArgumentNumberRange:
