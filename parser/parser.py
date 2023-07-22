@@ -268,10 +268,17 @@ def parseMatchPredicate(parseBuffer):
 
 
 def parseOneOfExpectedStrings(parseBuffer, expectedStrings, otherExpected=None):
+    longestString = None
     for expected in expectedStrings:
         if bufferHasSubstring(parseBuffer, expected):
-            parseBuffer.skip(len(expected))
-            return expected
+            if not longestString:
+                longestString = expected
+            else:
+                if len(expected) > len(longestString):
+                    longestString = expected
+    if longestString:
+        parseBuffer.skip(len(longestString))
+        return longestString
     otherExpectedSpecifier = f" or {otherExpected}" if otherExpected else ""
     generateParseError(
         parseBuffer, f'one of {"|".join(expectedStrings)}{otherExpectedSpecifier}', None

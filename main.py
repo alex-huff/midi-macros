@@ -176,7 +176,9 @@ class MidiMacros:
             profileSpecifier = f"@{profile}" if profile else ""
             subprofileSpecifier = f"@{subprofile}" if subprofile else ""
             lines = config[triggerType].splitlines()
-            parseBuffer = ParseBuffer(lines, f"{triggerType}{subprofileSpecifier}{profileSpecifier}")
+            parseBuffer = ParseBuffer(
+                lines, f"{triggerType}{subprofileSpecifier}{profileSpecifier}"
+            )
             parseBuffer.skipTillData()
             trigger = parseTriggers(parseBuffer)
             parseBuffer.skipTillData()
@@ -204,9 +206,15 @@ class MidiMacros:
     def buildMacroTree(self, macroFilePath, profile, subprofile=None):
         try:
             with open(macroFilePath, "r") as macroFile:
-                return parseMacroFile(macroFile, os.path.basename(macroFilePath), profile, subprofile)
+                return parseMacroFile(
+                    macroFile, os.path.basename(macroFilePath), profile, subprofile
+                )
         except ParseError as parseError:
-            raise ConfigException(f"{parseError.getSourceString()}\nfailed to parse macro tree:\n{parseError.message}", profile, subprofile)
+            raise ConfigException(
+                f"{parseError.getSourceString()}\nfailed to parse macro tree:\n{parseError.message}",
+                profile,
+                subprofile,
+            )
         except (FileNotFoundError, IsADirectoryError):
             raise ConfigException(
                 f"invalid macro file: {macroFilePath}", profile, subprofile
