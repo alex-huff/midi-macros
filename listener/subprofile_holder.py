@@ -37,6 +37,6 @@ class SubprofileHolder:
     def getInfo(self):
         return {"current": self.getCurrent(), "all": self.names}
 
-    def wait(self):
+    def shutdown(self):
         for subprofileConfig in self.subprofiles.values():
-            subprofileConfig[MACROS].wait()
+            subprofileConfig[MACROS].shutdown()

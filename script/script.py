@@ -67,7 +67,10 @@ class Script:
                 self.invocationQueue.task_done()
                 break
 
-    def wait(self):
+    def shutdown(self):
+        """
+        Make sure no more invocations of this script will ever be queued before calling this function.
+        """
         if not self.invocationThread:
             return
         # signals to shutdown

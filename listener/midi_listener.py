@@ -275,6 +275,6 @@ class MidiListener:
         # rtmidi internally will interrupt and join with callback thread
         self.midiin.close_port()
         del self.midiin
-        self.globalMacroTree.wait()
+        self.globalMacroTree.shutdown()
         if self.subprofileHolder:
-            self.subprofileHolder.wait()
+            self.subprofileHolder.shutdown()

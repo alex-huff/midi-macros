@@ -70,11 +70,11 @@ class MacroTree:
                         self.recurseMacroTreeAndExecuteMacros(
                             nextNode, position + 1, playedNotes
                         )
-    def wait(self):
-        self.recurseMacroTreeAndWaitForScripts(self.root)
+    def shutdown(self):
+        self.recurseMacroTreeAndShutdownScripts(self.root)
 
-    def recurseMacroTreeAndWaitForScripts(self, currentNode):
+    def recurseMacroTreeAndShutdownScripts(self, currentNode):
         for script in currentNode.getScripts():
-            script.wait()
+            script.shutdown()
         for nextNode in currentNode.getBranches().values():
-            self.recurseMacroTreeAndWaitForScripts(nextNode)
+            self.recurseMacroTreeAndShutdownScripts(nextNode)
