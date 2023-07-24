@@ -1,7 +1,7 @@
 import subprocess
 from threading import Thread
 from queue import Queue, Empty
-from macro.macro_argument import MacroArgumentFormat
+from script.argument import ArgumentFormat
 from log.mm_logging import logError, exceptionStr
 
 NONE = 0
@@ -69,7 +69,7 @@ class Script:
 
     def shutdown(self):
         """
-        Make sure no more invocations of this script will ever be queued before calling this function.
+        Make sure all invocations of this script have been queued, and no more invocations will ever be queued, before calling this function.
         """
         if not self.invocationThread:
             return
@@ -87,7 +87,7 @@ class Script:
                 shell=True,
                 start_new_session=True,
             )
-            if self.interpreter:
+            if self.interpreter and process.stdin:
                 process.stdin.write(processedScript)
                 process.stdin.close()
             if self.flags & BLOCK:
@@ -101,14 +101,14 @@ class Script:
             return
         argumentFormat = self.argumentDefinition.getArgumentFormat()
         replaceString = self.argumentDefinition.getReplaceString()
-        if isinstance(argumentFormat, MacroArgumentFormat):
+        if isinstance(argumentFormat, ArgumentFormat):
             argumentGenerator = (
-                argumentFormat.toMacroArgument(playedNote) for playedNote in args
+                argumentFormat.convert(playedNote) for playedNote in args
             )
         else:
             argumentGenerator = (
                 "".join(
-                    af if isinstance(af, str) else af.toMacroArgument(playedNote)
+                    af if isinstance(af, str) else af.convert(playedNote)
                     for af in argumentFormat
                 )
                 for playedNote in args
@@ -129,7 +129,7 @@ class Script:
             if len(args) == 0:
                 self.queue(args)
             return
-        if not self.argumentDefinition.numArgumentsAllowed(len(args)):
+        if not self.argumentDefinition.testNumArguments(len(args)):
             return
         self.queue(args)
 

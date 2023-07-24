@@ -4,7 +4,7 @@ from log.mm_logging import logInfo
 from aspn import aspn
 from parser.parse_buffer import ParseBuffer
 from parser.parse_error import ParseError
-from macro.macro_argument import *
+from script.argument import *
 from macro.tree.macro_tree import MacroTree
 from macro.macro_note import MacroNote
 from macro.macro_chord import MacroChord
@@ -285,7 +285,7 @@ def parseArgumentDefinition(parseBuffer):
             "argument number range or argument definition body",
             parseBuffer.getCurrentChar(),
         )
-    argumentNumberRange = UNBOUNDED_MANR
+    argumentNumberRange = UNBOUNDED_ARGUMENT_NUMBER_RANGE
     if parseBuffer.getCurrentChar() == "[":
         argumentNumberRange = parseArgumentNumberRange(parseBuffer)
     argumentDefinition = parseArgumentDefinitionBody(parseBuffer)
@@ -306,7 +306,7 @@ def parseArgumentNumberRange(parseBuffer):
         setLowerBound = True
         if parseBuffer.getCurrentChar() == "]":
             parseBuffer.skip(1)
-            return MacroArgumentNumberRange(lowerBound, lowerBound)
+            return ArgumentNumberRange(lowerBound, lowerBound)
     if parseBuffer.getCurrentChar() != ":":
         generateParseError(
             parseBuffer,
@@ -320,7 +320,7 @@ def parseArgumentNumberRange(parseBuffer):
     if parseBuffer.getCurrentChar() != "]":
         generateParseError(parseBuffer, "number or ]", parseBuffer.getCurrentChar())
     parseBuffer.skip(1)
-    return MacroArgumentNumberRange(lowerBound, upperBound)
+    return ArgumentNumberRange(lowerBound, upperBound)
 
 
 def parsePositiveInteger(parseBuffer):
@@ -384,7 +384,7 @@ def parseArgumentDefinitionBody(parseBuffer):
     if parseBuffer.getCurrentChar() != ")":
         generateParseError(parseBuffer, ")", parseBuffer.getCurrentChar())
     parseBuffer.skip(1)
-    return MacroArgumentDefinition(argumentFormat, replaceString, argumentSeperator)
+    return ArgumentDefinition(argumentFormat, replaceString, argumentSeperator)
 
 
 def parseQuotedString(parseBuffer, quoteChar='"'):
@@ -478,7 +478,7 @@ def parseFStringArgumentFormat(parseBuffer):
         )
     parseBuffer.skip(1)
     fString = parseQuotedString(parseBuffer)
-    argumentFormat = []
+    argumentFormatList = []
     stringBuilder = []
     escaping = False
     currentStringStart = 0
@@ -486,7 +486,7 @@ def parseFStringArgumentFormat(parseBuffer):
     def addStringBuilderToArgumentFormat():
         if len(stringBuilder) == 0:
             return
-        argumentFormat.append("".join(stringBuilder))
+        argumentFormatList.append("".join(stringBuilder))
         stringBuilder.clear()
 
     def addToStringBuilder(end=None):
@@ -498,16 +498,16 @@ def parseFStringArgumentFormat(parseBuffer):
             addToStringBuilder(i)
             currentStringStart = i + 1
         elif escaping and char in ARGUMENT_FORMAT_SHORTHANDS:
-            macroArgumentFormat = ARGUMENT_FORMAT_SHORTHANDS[char]
+            argumentFormat = ARGUMENT_FORMAT_SHORTHANDS[char]
             if i - 1 > currentStringStart:
                 addToStringBuilder(i - 1)
                 addStringBuilderToArgumentFormat()
-            argumentFormat.append(macroArgumentFormat)
+            argumentFormatList.append(argumentFormat)
             currentStringStart = i + 1
         escaping = not escaping if char == "%" else False
     addToStringBuilder()
     addStringBuilderToArgumentFormat()
-    return argumentFormat
+    return argumentFormatList
 
 
 def parseInterpreter(parseBuffer):

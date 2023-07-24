@@ -2,12 +2,12 @@ import math
 from aspn.aspn import midiNoteToASPN
 
 
-class MacroArgumentFormat:
+class ArgumentFormat:
     def __init__(self, convertor, name):
         self.convertor = convertor
         self.name = name
 
-    def toMacroArgument(self, playedNote):
+    def convert(self, playedNote):
         return self.convertor(playedNote)
 
     def getName(self):
@@ -17,20 +17,20 @@ class MacroArgumentFormat:
         return self.getName()
 
 
-FORMAT_MIDI = MacroArgumentFormat(lambda pn: str(pn.getNote()), "MIDI")
-FORMAT_ASPN = MacroArgumentFormat(
+FORMAT_MIDI = ArgumentFormat(lambda pn: str(pn.getNote()), "MIDI")
+FORMAT_ASPN = ArgumentFormat(
     lambda pn: midiNoteToASPN(pn.getNote(), False), "ASPN"
 )
-FORMAT_ASPN_UNICODE = MacroArgumentFormat(
+FORMAT_ASPN_UNICODE = ArgumentFormat(
     lambda pn: midiNoteToASPN(pn.getNote()), "ASPN_UNICODE"
 )
-FORMAT_PIANO = MacroArgumentFormat(lambda pn: str(pn.getNote() - 20), "PIANO")
-FORMAT_VELOCITY = MacroArgumentFormat(lambda pn: str(pn.getVelocity()), "VELOCITY")
-FORMAT_TIME = MacroArgumentFormat(lambda pn: str(pn.getTime()), "TIME")
-FORMAT_NONE = MacroArgumentFormat(lambda _: "", "NONE")
+FORMAT_PIANO = ArgumentFormat(lambda pn: str(pn.getNote() - 20), "PIANO")
+FORMAT_VELOCITY = ArgumentFormat(lambda pn: str(pn.getVelocity()), "VELOCITY")
+FORMAT_TIME = ArgumentFormat(lambda pn: str(pn.getTime()), "TIME")
+FORMAT_NONE = ArgumentFormat(lambda _: "", "NONE")
 
 
-class MacroArgumentNumberRange:
+class ArgumentNumberRange:
     def __init__(self, lowerBound, upperBound):
         self.lowerBound = lowerBound
         self.upperBound = upperBound
@@ -45,17 +45,17 @@ class MacroArgumentNumberRange:
         return self.lowerBound <= numArguments <= self.upperBound
 
 
-UNBOUNDED_MANR = MacroArgumentNumberRange(0, math.inf)
-ZERO_MANR = MacroArgumentNumberRange(0, 0)
+UNBOUNDED_ARGUMENT_NUMBER_RANGE = ArgumentNumberRange(0, math.inf)
+ZERO_ARGUMENT_NUMBER_RANGE = ArgumentNumberRange(0, 0)
 
 
-class MacroArgumentDefinition:
+class ArgumentDefinition:
     def __init__(
         self,
         argumentFormat,
         replaceString=None,
         argumentSeperator=" ",
-        argumentNumberRange=UNBOUNDED_MANR,
+        argumentNumberRange=UNBOUNDED_ARGUMENT_NUMBER_RANGE,
     ):
         self.argumentFormat = argumentFormat
         self.replaceString = replaceString
@@ -74,7 +74,7 @@ class MacroArgumentDefinition:
     def getArgumentNumberRange(self):
         return self.argumentNumberRange
 
-    def numArgumentsAllowed(self, numArguments):
+    def testNumArguments(self, numArguments):
         return self.argumentNumberRange.test(numArguments)
 
     def setArgumentNumberRange(self, argumentNumberRange):
@@ -90,14 +90,14 @@ class MacroArgumentDefinition:
         )
         argumentFormatSpecifier = (
             self.argumentFormat.getName()
-            if isinstance(self.argumentFormat, MacroArgumentFormat)
+            if isinstance(self.argumentFormat, ArgumentFormat)
             else "|".join(
-                (s if isinstance(s, str) else str(s) for s in self.argumentFormat)
+                s if isinstance(s, str) else str(s) for s in self.argumentFormat
             )
         )
         return f"*{argumentNumRangeSpecifier}({replaceStringSpecifier}{argumentSeperatorSpecifier}{argumentFormatSpecifier})"
 
 
-ZERO_ARGUMENT_DEFINITION = MacroArgumentDefinition(
-    FORMAT_NONE, argumentNumberRange=ZERO_MANR
+ZERO_ARGUMENT_DEFINITION = ArgumentDefinition(
+    FORMAT_NONE, argumentNumberRange=ZERO_ARGUMENT_NUMBER_RANGE
 )
