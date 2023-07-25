@@ -227,7 +227,7 @@ class MidiListener:
         if self.testTrigger(self.enableTrigger, self.enableTriggerLength):
             self.toggleEnabled()
             return True
-        if self.testTrigger(
+        if self.enabled and self.testTrigger(
             self.cycleSubprofilesTrigger, self.cycleSubprofilesTriggerLength
         ):
             self.cycleSubprofiles()
