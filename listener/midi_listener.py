@@ -36,7 +36,7 @@ class MidiListener:
         self.config = config
         self.callbackQueue = callbackQueue
         subprofiles = self.config[SUBPROFILES]
-        self.subprofileHolder = SubprofileHolder(subprofiles) if subprofiles else None
+        self.subprofileHolder = SubprofileHolder(self.profile, subprofiles) if subprofiles else None
         self.globalMacroTree = self.config[GLOBAL_MACROS]
         self.listenerLock = RLock()
         self.pressed = []
@@ -273,8 +273,10 @@ class MidiListener:
         if not hasattr(self, "midiin"):
             return
         # rtmidi internally will interrupt and join with callback thread
+        logInfo('closing midi port', profile=self.profile)
         self.midiin.close_port()
         del self.midiin
+        logInfo('waiting for queued script invocations to complete', profile=self.profile)
         self.globalMacroTree.shutdown()
         if self.subprofileHolder:
             self.subprofileHolder.shutdown()

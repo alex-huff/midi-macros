@@ -16,9 +16,9 @@ def logError(message, profile=None, subprofile=None):
 def log(message, level, file, profile=None, subprofile=None):
     if profile:
         if subprofile:
-            profileSpecifier = f"[{profile}][{subprofile}]"
+            profileSpecifier = f"[{profile}][{subprofile}]: "
         else:
-            profileSpecifier = f"[{profile}]"
+            profileSpecifier = f"[{profile}]: "
     else:
         profileSpecifier = ""
-    print(f"{profileSpecifier}: {level}: {message}", file=file)
+    print(f"{profileSpecifier}{level}: {message}", file=file)

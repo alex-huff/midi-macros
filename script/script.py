@@ -77,6 +77,7 @@ class Script:
         self.invocationQueue.put(None)
         self.invocationQueue.join()
         self.invocationThread.join()
+        self.invocationThread = None
 
     def runProcess(self, processedScript):
         try:

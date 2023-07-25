@@ -1,8 +1,10 @@
 from config.mm_config import MACROS
+from log.mm_logging import logInfo
 
 
 class SubprofileHolder:
-    def __init__(self, subprofiles):
+    def __init__(self, profile, subprofiles):
+        self.profile = profile
         self.subprofiles = subprofiles
         self.names = tuple(self.subprofiles.keys())
         self.numSubprofiles = len(self.names)
@@ -38,5 +40,6 @@ class SubprofileHolder:
         return {"current": self.getCurrent(), "all": self.names}
 
     def shutdown(self):
-        for subprofileConfig in self.subprofiles.values():
+        for subprofile, subprofileConfig in self.subprofiles.items():
+            logInfo('waiting for queued script invocations to complete', profile=self.profile, subprofile=subprofile)
             subprofileConfig[MACROS].shutdown()

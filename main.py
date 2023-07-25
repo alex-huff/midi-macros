@@ -118,13 +118,19 @@ class MidiMacros:
         self.createAndRunListeners()
 
     def shutdown(self):
+        logInfo('stopping listeners')
         self.stopListeners()
+        logInfo('waiting for callbacks to complete')
         self.callbackQueue.join()
 
     def reload(self):
+        logInfo('shutting down profiles')
         self.shutdown()
+        logInfo('reloading configuration')
         result = self.reloadConfig()
+        logInfo('initializing midi listeners')
         self.initialize()
+        logInfo('reload completed')
         return result
 
     def initConfig(self):
