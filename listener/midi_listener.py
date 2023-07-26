@@ -78,7 +78,8 @@ class MidiListener:
     def toggleVirtualPedalDown(self):
         with self.listenerLock:
             self.virtualPedalDown = not self.virtualPedalDown
-            self.handleUpdate(None, virtualSustainToggleUpdate=True)
+            if not self.virtualPedalDown:
+                self.handleSustainRelease()
             self.queueVirtualSustainCallback()
             return self.virtualPedalDown
 
@@ -159,12 +160,12 @@ class MidiListener:
 
     def __call__(self, event, data=None):
         with self.listenerLock:
-            self.handleUpdate(event)
+            self.handleMIDIEvent(event)
 
-    def handleSustainRelease(self, channel):
+    def handleSustainRelease(self):
         def shouldRelease(nc):
-            if nc[1] == channel:
-                toRelease.add(nc[0])
+            if not self.pedalDown[nc[1]]:
+                toRelease.add(nc)
                 return True
             return False
         toRelease = set()
@@ -174,17 +175,9 @@ class MidiListener:
             if self.lastChangeWasAdd:
                 self.executeMacros()
                 self.lastChangeWasAdd = False
-            self.pressed = [pn for pn in self.pressed if pn.getChannel() != channel or pn.getNote()
-                            not in toRelease]
+            self.pressed = [pn for pn in self.pressed if (pn.getNote(), pn.getChannel()) not in toRelease]
 
-    def handleUpdate(self, event, virtualSustainToggleUpdate=False):
-        if virtualSustainToggleUpdate:
-            for channel in range(16):
-                wasSustainingOnChannel = self.pedalDown[channel] or not self.virtualPedalDown
-                isSustainingOnChannel = self.pedalDown[channel] or self.virtualPedalDown
-                if wasSustainingOnChannel and not isSustainingOnChannel:
-                    self.handleSustainRelease(channel)
-            return
+    def handleMIDIEvent(self, event):
         eventData, _ = event
         if len(eventData) < 3:
             return
@@ -202,7 +195,7 @@ class MidiListener:
             self.pedalDown[channel] = data_2 >= 64
             isSustainingOnChannel = self.pedalDown[channel] or self.virtualPedalDown
             if wasSustainingOnChannel and not isSustainingOnChannel:
-                self.handleSustainRelease(channel)
+                self.handleSustainRelease()
             return
         isSustainingOnChannel = wasSustainingOnChannel
         velocity = data_2
@@ -247,7 +240,7 @@ class MidiListener:
         if self.handleTriggers() or not self.enabled:
             return
         logInfo(
-            f"evaluating pressed keys: {[aspn.midiNoteToASPN(playedNote.getNote()) for playedNote in self.pressed]}",
+            f"evaluating pressed keys: {' '.join([f'{playedNote.getChannel()}:{aspn.midiNoteToASPN(playedNote.getNote())}' for playedNote in self.pressed])}",
             self.profile,
         )
         self.globalMacroTree.executeMacros(self.pressed)

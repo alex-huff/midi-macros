@@ -72,7 +72,7 @@ def parseMacroFile(macroFile, source, profile, subprofile=None):
 
 
 def parseMacro(parseBuffer):
-    triggers = parseTriggers(parseBuffer)
+    triggers = parseTriggers(parseBuffer) if parseBuffer.getCurrentChar() != "*" else []
     parseBuffer.skipTillData()
     argumentDefinition = ZERO_ARGUMENT_DEFINITION
     parsedArgumentDefinition = False
@@ -144,7 +144,7 @@ def parseTriggers(parseBuffer):
 
 
 def parseTrigger(parseBuffer):
-    if parseBuffer.getCurrentChar() == "(":
+    if parseBuffer.getCurrentChar() == "[":
         return parseChord(parseBuffer)
     if parseBuffer.getCurrentChar().isdigit() or BASE_PITCH_REGEX.match(
         parseBuffer.getCurrentChar()
@@ -155,7 +155,7 @@ def parseTrigger(parseBuffer):
 
 
 def parseChord(parseBuffer):
-    if parseBuffer.getCurrentChar() != "(":
+    if parseBuffer.getCurrentChar() != "[":
         generateParseError(parseBuffer, "chord", parseBuffer.getCurrentChar())
     parseBuffer.skip(1)
     chord = []
@@ -164,10 +164,10 @@ def parseChord(parseBuffer):
         note = parseNote(parseBuffer)
         chord.append(note)
         parseBuffer.skipTillData()
-        if parseBuffer.getCurrentChar() not in "|)":
-            generateParseError(parseBuffer, "| or )",
+        if parseBuffer.getCurrentChar() not in "|]":
+            generateParseError(parseBuffer, "| or ]",
                                parseBuffer.getCurrentChar())
-        if parseBuffer.getCurrentChar() == ")":
+        if parseBuffer.getCurrentChar() == "]":
             parseBuffer.skip(1)
             chord.sort(key=lambda macroNote: macroNote.getNote())
             matchPredicate = "True"
