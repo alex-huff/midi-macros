@@ -63,12 +63,15 @@ def testChordWithMacroChord(playedNotes, position, macroChord):
     cminv = CHORD_MIN_VELOCITY
     cmaxv = CHORD_MAX_VELOCITY
     cavgv = CHORD_AVERAGE_VELOCITY
+    matchPredicate = None
     try:
-        result = eval(macroChord.getMatchPredicate())
+        for matchPredicate in macroChord.getMatchPredicates():
+            if not eval(matchPredicate):
+                return False
+        return True
     except Exception:
-        logMatchPredicateEvaluationError(macroChord.getMatchPredicate())
+        logMatchPredicateEvaluationError(matchPredicate)
         return False
-    return result
 
 
 def testNoteWithMacroNote(playedNotes, position, macroNote):
@@ -87,12 +90,15 @@ def testNoteWithMacroNote(playedNotes, position, macroNote):
     v = VELOCITY
     t = TIME
     et = ELAPSED_TIME
+    matchPredicate = None
     try:
-        result = eval(macroNote.getMatchPredicate())
+        for matchPredicate in macroNote.getMatchPredicates():
+            if not eval(matchPredicate):
+                return False
+        return True
     except Exception:
-        logMatchPredicateEvaluationError(macroNote.getMatchPredicate())
+        logMatchPredicateEvaluationError(matchPredicate)
         return False
-    return result
 
 
 def testTriggerWithPlayedNotes(

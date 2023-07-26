@@ -2,29 +2,35 @@ from aspn import aspn
 
 
 class MacroNote:
-    def __init__(self, note, matchPredicate):
+    def __init__(self, note):
         self.note = note
-        self.matchPredicate = matchPredicate
+        self.matchPredicates = []
+        self.tupleRep = None
 
     def getNote(self):
         return self.note
 
-    def getMatchPredicate(self):
-        return self.matchPredicate
+    def getMatchPredicates(self):
+        return (matchPredicate for matchPredicate in self.matchPredicates)
 
-    def tupleRep(self):
-        return (self.note, self.matchPredicate)
+    def addMatchPredicate(self, matchPredicate):
+        self.matchPredicates.append(matchPredicate)
+        self.tupleRep = None
+
+    def getTupleRep(self):
+        if not self.tupleRep:
+            self.tupleRep = (self.note, tuple(self.matchPredicates))
+        return self.tupleRep
 
     def __str__(self):
-        matchPredicateSpecifier = (
-            f"{{{self.matchPredicate}}}" if self.matchPredicate != "True" else ""
-        )
-        return f"{aspn.midiNoteToASPN(self.note)}{matchPredicateSpecifier}"
+        matchPredicatesSpecifier = "".join(
+            f"{{{matchPredicate}}}" for matchPredicate in self.matchPredicates)
+        return f"{aspn.midiNoteToASPN(self.note)}{matchPredicatesSpecifier}"
 
     def __eq__(self, other):
         if isinstance(other, MacroNote):
-            return self.tupleRep() == other.tupleRep()
+            return self.getTupleRep() == other.getTupleRep()
         return False
 
     def __hash__(self):
-        return hash(self.tupleRep())
+        return hash(self.getTupleRep())

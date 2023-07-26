@@ -72,7 +72,8 @@ def parseMacroFile(macroFile, source, profile, subprofile=None):
 
 
 def parseMacro(parseBuffer):
-    triggers = parseTriggers(parseBuffer) if parseBuffer.getCurrentChar() != "*" else []
+    triggers = parseTriggers(
+        parseBuffer) if parseBuffer.getCurrentChar() != "*" else []
     parseBuffer.skipTillData()
     argumentDefinition = ZERO_ARGUMENT_DEFINITION
     parsedArgumentDefinition = False
@@ -133,8 +134,21 @@ def parseTriggers(parseBuffer):
     triggers = []
     while True:
         parseBuffer.skipTillData()
-        trigger = parseTrigger(parseBuffer)
-        triggers.append(trigger)
+        if parseBuffer.getCurrentChar() == "(":
+            parseBuffer.skip(1)
+            parenthesizedTriggers = parseTriggers(parseBuffer)
+            parseBuffer.skipTillData()
+            if not parseBuffer.getCurrentChar() == ")":
+                generateParseError(parseBuffer, ")",
+                                   parseBuffer.getCurrentChar())
+            parseBuffer.skip(1)
+            while not parseBuffer.atEndOfLine() and parseBuffer.getCurrentChar() == "{":
+                matchPredicate = parseMatchPredicate(parseBuffer)
+                for trigger in parenthesizedTriggers:
+                    trigger.addMatchPredicate(matchPredicate)
+            triggers.extend(parenthesizedTriggers)
+        else:
+            triggers.append(parseTrigger(parseBuffer))
         afterTrigger = parseBuffer.at()
         parseBuffer.skipTillData()
         if parseBuffer.atEndOfBuffer() or parseBuffer.getCurrentChar() != "+":
@@ -170,10 +184,10 @@ def parseChord(parseBuffer):
         if parseBuffer.getCurrentChar() == "]":
             parseBuffer.skip(1)
             chord.sort(key=lambda macroNote: macroNote.getNote())
-            matchPredicate = "True"
-            if not parseBuffer.atEndOfLine() and parseBuffer.getCurrentChar() == "{":
-                matchPredicate = parseMatchPredicate(parseBuffer)
-            return MacroChord(tuple(chord), matchPredicate)
+            macroChord = MacroChord(tuple(chord))
+            while not parseBuffer.atEndOfLine() and parseBuffer.getCurrentChar() == "{":
+                macroChord.addMatchPredicate(parseMatchPredicate(parseBuffer))
+            return macroChord
         parseBuffer.skip(1)
 
 
@@ -194,10 +208,10 @@ def parseNote(parseBuffer):
     if not inMidiRange(note):
         parseBuffer.jump(startPosition)
         generateInvalidMIDIError(parseBuffer, note)
-    matchPredicate = "True"
-    if not parseBuffer.atEndOfLine() and parseBuffer.getCurrentChar() == "{":
-        matchPredicate = parseMatchPredicate(parseBuffer)
-    return MacroNote(note, matchPredicate)
+    macroNote = MacroNote(note)
+    while not parseBuffer.atEndOfLine() and parseBuffer.getCurrentChar() == "{":
+        macroNote.addMatchPredicate(parseMatchPredicate(parseBuffer))
+    return macroNote
 
 
 def parseASPNNote(parseBuffer):
