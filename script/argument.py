@@ -27,6 +27,7 @@ FORMAT_ASPN_UNICODE = ArgumentFormat(
 FORMAT_PIANO = ArgumentFormat(lambda pn: str(pn.getNote() - 20), "PIANO")
 FORMAT_VELOCITY = ArgumentFormat(lambda pn: str(pn.getVelocity()), "VELOCITY")
 FORMAT_TIME = ArgumentFormat(lambda pn: str(pn.getTime()), "TIME")
+FORMAT_CHANNEL = ArgumentFormat(lambda pn: str(pn.getChannel()), "CHANNEL")
 FORMAT_NONE = ArgumentFormat(lambda _: "", "NONE")
 
 

@@ -36,21 +36,24 @@ class MidiListener:
         self.config = config
         self.callbackQueue = callbackQueue
         subprofiles = self.config[SUBPROFILES]
-        self.subprofileHolder = SubprofileHolder(self.profile, subprofiles) if subprofiles else None
+        self.subprofileHolder = SubprofileHolder(
+            self.profile, subprofiles) if subprofiles else None
         self.globalMacroTree = self.config[GLOBAL_MACROS]
         self.listenerLock = RLock()
         self.pressed = []
         self.queuedReleases = set()
         self.lastChangeWasAdd = False
-        self.pedalDown = False
+        self.pedalDown = [False for _ in range(16)]
         self.virtualPedalDown = False
         self.enabled = True
         self.portName = None
         self.enableTrigger = self.config.get(ENABLE_TRIGGER)
         self.enableTriggerLength = (
-            numNotesInTrigger(self.enableTrigger) if self.enableTrigger else None
+            numNotesInTrigger(
+                self.enableTrigger) if self.enableTrigger else None
         )
-        self.cycleSubprofilesTrigger = self.config.get(CYCLE_SUBPROFILES_TRIGGER)
+        self.cycleSubprofilesTrigger = self.config.get(
+            CYCLE_SUBPROFILES_TRIGGER)
         self.cycleSubprofilesTriggerLength = (
             numNotesInTrigger(self.cycleSubprofilesTrigger)
             if self.cycleSubprofilesTrigger
@@ -158,62 +161,68 @@ class MidiListener:
         with self.listenerLock:
             self.handleUpdate(event)
 
-    def handleSustainRelease(self):
-        if self.lastChangeWasAdd and len(self.queuedReleases) > 0:
-            self.executeMacros()
-            self.lastChangeWasAdd = False
-        self.pressed = [
-            playedNote
-            for playedNote in self.pressed
-            if playedNote.getNote() not in self.queuedReleases
-        ]
-        self.queuedReleases.clear()
+    def handleSustainRelease(self, channel):
+        def shouldRelease(nc):
+            if nc[1] == channel:
+                toRelease.add(nc[0])
+                return True
+            return False
+        toRelease = set()
+        self.queuedReleases = {
+            nc for nc in self.queuedReleases if not shouldRelease(nc)}
+        if len(toRelease) > 0:
+            if self.lastChangeWasAdd:
+                self.executeMacros()
+                self.lastChangeWasAdd = False
+            self.pressed = [pn for pn in self.pressed if pn.getChannel() != channel or pn.getNote()
+                            not in toRelease]
 
     def handleUpdate(self, event, virtualSustainToggleUpdate=False):
         if virtualSustainToggleUpdate:
-            wasSustaining = self.pedalDown or not self.virtualPedalDown
-            isSustaining = self.pedalDown or self.virtualPedalDown
-            if wasSustaining and not isSustaining:
-                self.handleSustainRelease()
+            for channel in range(16):
+                wasSustainingOnChannel = self.pedalDown[channel] or not self.virtualPedalDown
+                isSustainingOnChannel = self.pedalDown[channel] or self.virtualPedalDown
+                if wasSustainingOnChannel and not isSustainingOnChannel:
+                    self.handleSustainRelease(channel)
             return
         eventData, _ = event
-        # print(eventData, _)
         if len(eventData) < 3:
             return
         (status, data_1, data_2) = eventData
+        statusType = status >> 4
+        channel = status & 0xF
         if (
-            status != NOTE_ON_STATUS
-            and status != NOTE_OFF_STATUS
-            and (status != CONTROL_CHANGE_STATUS or data_1 != SUSTAIN_PEDAL)
+            statusType != NOTE_ON_STATUS
+            and statusType != NOTE_OFF_STATUS
+            and (statusType != CONTROL_CHANGE_STATUS or data_1 != SUSTAIN_PEDAL)
         ):
             return
-        wasSustaining = self.pedalDown or self.virtualPedalDown
-        if status == CONTROL_CHANGE_STATUS:
-            self.pedalDown = data_2 >= 64
-            isSustaining = self.pedalDown or self.virtualPedalDown
-            if wasSustaining and not isSustaining:
-                self.handleSustainRelease()
+        wasSustainingOnChannel = self.pedalDown[channel] or self.virtualPedalDown
+        if statusType == CONTROL_CHANGE_STATUS:
+            self.pedalDown[channel] = data_2 >= 64
+            isSustainingOnChannel = self.pedalDown[channel] or self.virtualPedalDown
+            if wasSustainingOnChannel and not isSustainingOnChannel:
+                self.handleSustainRelease(channel)
             return
-        isSustaining = wasSustaining
+        isSustainingOnChannel = wasSustainingOnChannel
         velocity = data_2
         note = data_1
-        wasPress = status == NOTE_ON_STATUS and velocity > 0
+        wasPress = statusType == NOTE_ON_STATUS and velocity > 0
+        nc = (note, channel)
         if wasPress:
-            if note in self.queuedReleases:
-                self.queuedReleases.remove(note)
-            self.pressed.append(PlayedNote(note, velocity, time.time_ns()))
+            if nc in self.queuedReleases:
+                self.queuedReleases.remove(nc)
+            self.pressed.append(PlayedNote(
+                note, channel, velocity, time.time_ns()))
         else:
-            if isSustaining:
-                self.queuedReleases.add(note)
+            if isSustainingOnChannel:
+                self.queuedReleases.add(nc)
                 return
             else:
                 if self.lastChangeWasAdd:
                     self.executeMacros()
-                self.pressed = [
-                    playedNote
-                    for playedNote in self.pressed
-                    if playedNote.getNote() != note
-                ]
+                self.pressed = [pn for pn in self.pressed if pn.getNote() !=
+                                note or pn.getChannel() != channel]
         self.lastChangeWasAdd = wasPress
 
     def testTrigger(self, trigger, triggerLength):
@@ -259,7 +268,8 @@ class MidiListener:
             )
             self.midiin.set_callback(self)
         except InvalidPortError:
-            raise ListenerException(f"invalid midi port: {self.config[MIDI_INPUT]}")
+            raise ListenerException(
+                f"invalid midi port: {self.config[MIDI_INPUT]}")
         except RTMIDISystemError:
             raise ListenerException("MIDI system error")
         except NoDevicesError:
@@ -276,7 +286,8 @@ class MidiListener:
         logInfo('closing midi port', profile=self.profile)
         self.midiin.close_port()
         del self.midiin
-        logInfo('waiting for queued script invocations to complete', profile=self.profile)
+        logInfo('waiting for queued script invocations to complete',
+                profile=self.profile)
         self.globalMacroTree.shutdown()
         if self.subprofileHolder:
             self.subprofileHolder.shutdown()

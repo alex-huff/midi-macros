@@ -23,15 +23,17 @@ ARGUMENT_FORMATS = {
     "PIANO": FORMAT_PIANO,
     "VELOCITY": FORMAT_VELOCITY,
     "TIME": FORMAT_TIME,
+    "CHANNEL": FORMAT_CHANNEL,
     "NONE": FORMAT_NONE,
 }
 ARGUMENT_FORMAT_SHORTHANDS = {
     "m": FORMAT_MIDI,
-    "p": FORMAT_PIANO,
     "a": FORMAT_ASPN,
     "A": FORMAT_ASPN_UNICODE,
+    "p": FORMAT_PIANO,
     "v": FORMAT_VELOCITY,
     "t": FORMAT_TIME,
+    "c": FORMAT_CHANNEL,
 }
 
 
@@ -97,7 +99,8 @@ def parseMacro(parseBuffer):
             "or argument definition" if not parsedAnything else ""
         )
         interpreterExpectedSpecifier = (
-            "or interpreter" if (not parsedInterpreter and not parsedScriptFlags) else ""
+            "or interpreter" if (
+                not parsedInterpreter and not parsedScriptFlags) else ""
         )
         scriptFlagsExpectedSpecifier = "or script flags" if not parsedScriptFlags else ""
         generateParseError(
@@ -107,7 +110,8 @@ def parseMacro(parseBuffer):
         )
     eatArrow(parseBuffer)
     parseBuffer.skipTillData()
-    script = Script(parseScript(parseBuffer), argumentDefinition, scriptFlags, interpreter)
+    script = Script(parseScript(parseBuffer),
+                    argumentDefinition, scriptFlags, interpreter)
     return Macro(triggers, script)
 
 
@@ -146,7 +150,8 @@ def parseTrigger(parseBuffer):
         parseBuffer.getCurrentChar()
     ):
         return parseNote(parseBuffer)
-    generateParseError(parseBuffer, "note or chord", parseBuffer.getCurrentChar())
+    generateParseError(parseBuffer, "note or chord",
+                       parseBuffer.getCurrentChar())
 
 
 def parseChord(parseBuffer):
@@ -160,7 +165,8 @@ def parseChord(parseBuffer):
         chord.append(note)
         parseBuffer.skipTillData()
         if parseBuffer.getCurrentChar() not in "|)":
-            generateParseError(parseBuffer, "| or )", parseBuffer.getCurrentChar())
+            generateParseError(parseBuffer, "| or )",
+                               parseBuffer.getCurrentChar())
         if parseBuffer.getCurrentChar() == ")":
             parseBuffer.skip(1)
             chord.sort(key=lambda macroNote: macroNote.getNote())
@@ -196,7 +202,8 @@ def parseNote(parseBuffer):
 
 def parseASPNNote(parseBuffer):
     if not BASE_PITCH_REGEX.match(parseBuffer.getCurrentChar()):
-        generateParseError(parseBuffer, "ASPN note", parseBuffer.getCurrentChar())
+        generateParseError(parseBuffer, "ASPN note",
+                           parseBuffer.getCurrentChar())
     offset = 0
     basePitch = str.upper(parseBuffer.getCurrentChar())
     parseBuffer.skip(1)
@@ -251,7 +258,8 @@ def parseASPNModifiers(parseBuffer):
 
 def parseMatchPredicate(parseBuffer):
     if parseBuffer.getCurrentChar() != "{":
-        generateParseError(parseBuffer, "match predicate", parseBuffer.getCurrentChar())
+        generateParseError(parseBuffer, "match predicate",
+                           parseBuffer.getCurrentChar())
     parseBuffer.skip(1)
     startPosition = parseBuffer.at()
     numUnmatchedOpenLeftCurlyBraces = 0
@@ -318,14 +326,16 @@ def parseArgumentNumberRange(parseBuffer):
     if parseBuffer.getCurrentChar().isdigit():
         upperBound = parsePositiveInteger(parseBuffer)
     if parseBuffer.getCurrentChar() != "]":
-        generateParseError(parseBuffer, "number or ]", parseBuffer.getCurrentChar())
+        generateParseError(parseBuffer, "number or ]",
+                           parseBuffer.getCurrentChar())
     parseBuffer.skip(1)
     return ArgumentNumberRange(lowerBound, upperBound)
 
 
 def parsePositiveInteger(parseBuffer):
     if not parseBuffer.getCurrentChar().isdigit():
-        generateParseError(parseBuffer, "positive number", parseBuffer.getCurrentChar())
+        generateParseError(parseBuffer, "positive number",
+                           parseBuffer.getCurrentChar())
     startPosition = parseBuffer.at()
     while not parseBuffer.atEndOfLine() and parseBuffer.getCurrentChar().isdigit():
         parseBuffer.skip(1)
@@ -447,7 +457,8 @@ def bufferHasSubstring(parseBuffer, substring):
 
 def eatPythonString(parseBuffer):
     if parseBuffer.getCurrentChar() not in "\"'":
-        generateParseError(parseBuffer, "python string", parseBuffer.getCurrentChar())
+        generateParseError(parseBuffer, "python string",
+                           parseBuffer.getCurrentChar())
     quoteChar = parseBuffer.getCurrentChar()
     isDocstring = bufferHasSubstring(parseBuffer, quoteChar * 3)
     parseBuffer.skip(3 if isDocstring else 1)
@@ -512,7 +523,8 @@ def parseFStringArgumentFormat(parseBuffer):
 
 def parseInterpreter(parseBuffer):
     if not parseBuffer.getCurrentChar() == "(":
-        generateParseError(parseBuffer, "interpreter", parseBuffer.getCurrentChar())
+        generateParseError(parseBuffer, "interpreter",
+                           parseBuffer.getCurrentChar())
     parseBuffer.skip(1)
     startPosition = parseBuffer.at()
     parseBuffer.eatWhitespace()
@@ -530,7 +542,8 @@ def parseInterpreter(parseBuffer):
 
 def parseScriptFlags(parseBuffer):
     if not parseBuffer.getCurrentChar() == "[":
-        generateParseError(parseBuffer, "script flags", parseBuffer.getCurrentChar())
+        generateParseError(parseBuffer, "script flags",
+                           parseBuffer.getCurrentChar())
     parseBuffer.skip(1)
     afterSeperator = parseBuffer.at()
     parseBuffer.eatWhitespace()
@@ -544,7 +557,8 @@ def parseScriptFlags(parseBuffer):
         flag = parseBuffer.stringFrom(flagStart, parseBuffer.at())
         if flag not in FLAGS:
             parseBuffer.jump(flagStart)
-            generateParseError(parseBuffer, f"one of {'|'.join(FLAGS.keys())}", flag)
+            generateParseError(
+                parseBuffer, f"one of {'|'.join(FLAGS.keys())}", flag)
         flags |= FLAGS[flag]
         parseBuffer.eatWhitespace()
         if parseBuffer.getCurrentChar() == "]":
@@ -554,7 +568,8 @@ def parseScriptFlags(parseBuffer):
             afterSeperator = parseBuffer.at()
             parseBuffer.eatWhitespace()
         else:
-            generateParseError(parseBuffer, "| or ]", parseBuffer.getCurrentChar())
+            generateParseError(parseBuffer, "| or ]",
+                               parseBuffer.getCurrentChar())
     parseBuffer.skip(1)
     return flags
 

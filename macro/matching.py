@@ -44,6 +44,8 @@ def testChordWithMacroChord(playedNotes, position, macroChord):
     for macroNote, (position, _) in zip(macroChord.getChord(), playedChord):
         if not testNoteWithMacroNote(playedNotes, position, macroNote):
             return False
+    CHANNEL = {ip[1].getChannel() for ip in playedChord}
+    CHANNEL = tuple(CHANNEL)[0] if len(CHANNEL) == 1 else CHANNEL
     CHORD_START_TIME = playedNotes[chordStart].getTime()
     CHORD_FINISH_TIME = playedNotes[chordEnd].getTime()
     CHORD_ELAPSED_TIME = CHORD_FINISH_TIME - CHORD_START_TIME
@@ -54,6 +56,7 @@ def testChordWithMacroChord(playedNotes, position, macroChord):
     CHORD_MIN_VELOCITY = min(velocityFromIP(ip) for ip in playedChord)
     CHORD_MAX_VELOCITY = max(velocityFromIP(ip) for ip in playedChord)
     CHORD_AVERAGE_VELOCITY = mean(velocityFromIP(ip) for ip in playedChord)
+    c = CHANNEL
     cst = CHORD_START_TIME
     cft = CHORD_FINISH_TIME
     cet = CHORD_ELAPSED_TIME
@@ -72,6 +75,7 @@ def testNoteWithMacroNote(playedNotes, position, macroNote):
     playedNote = playedNotes[position]
     if playedNote.getNote() != macroNote.getNote():
         return False
+    CHANNEL = playedNote.getChannel()
     VELOCITY = playedNote.getVelocity()
     TIME = playedNote.getTime()
     ELAPSED_TIME = (
@@ -79,6 +83,7 @@ def testNoteWithMacroNote(playedNotes, position, macroNote):
         if position == 0
         else playedNote.getTime() - playedNotes[position - 1].getTime()
     )
+    c = CHANNEL
     v = VELOCITY
     t = TIME
     et = ELAPSED_TIME
