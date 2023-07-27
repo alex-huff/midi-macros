@@ -1,7 +1,7 @@
 import os
+import tempfile
 
 XDG_RUNTIME_DIR = "XDG_RUNTIME_DIR"
-UNIX_TEMP_DIR = "TMPDIR"
 
 
 class MessageFormatException(Exception):
@@ -15,12 +15,11 @@ class IPCIOError(Exception):
 
 
 def getIPCSocketPath():
-    if XDG_RUNTIME_DIR in os.environ:
-        unixSocketDirPath = os.environ[XDG_RUNTIME_DIR]
-    elif UNIX_TEMP_DIR in os.environ:
-        unixSocketDirPath = os.environ[UNIX_TEMP_DIR]
+    xdgRuntimeDir = os.environ.get(XDG_RUNTIME_DIR)
+    if xdgRuntimeDir:
+        unixSocketDirPath = xdgRuntimeDir
     else:
-        unixSocketDirPath = "/tmp"
+        unixSocketDirPath = tempfile.gettempdir()
     return os.path.join(unixSocketDirPath, "midi-macros-ipc.sock")
 
 

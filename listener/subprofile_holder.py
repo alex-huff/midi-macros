@@ -1,10 +1,9 @@
 from config.mm_config import MACROS
-from log.mm_logging import logInfo
+from log.mm_logging import loggingContext, logInfo
 
 
 class SubprofileHolder:
-    def __init__(self, profile, subprofiles):
-        self.profile = profile
+    def __init__(self, subprofiles):
         self.subprofiles = subprofiles
         self.names = tuple(self.subprofiles.keys())
         self.numSubprofiles = len(self.names)
@@ -33,6 +32,10 @@ class SubprofileHolder:
         self.current = index
         return True
 
+    def executeMacros(self, pressed):
+        with loggingContext(subprofile=self.getCurrent()):
+            self.getCurrentMacroTree().executeMacros(pressed)
+
     def getNames(self):
         return self.names
 
@@ -41,5 +44,6 @@ class SubprofileHolder:
 
     def shutdown(self):
         for subprofile, subprofileConfig in self.subprofiles.items():
-            logInfo('waiting for queued script invocations to complete', profile=self.profile, subprofile=subprofile)
-            subprofileConfig[MACROS].shutdown()
+            with loggingContext(subprofile=subprofile):
+                logInfo('waiting for queued script invocations to complete')
+                subprofileConfig[MACROS].shutdown()

@@ -1,6 +1,6 @@
 import re
 import math
-from log.mm_logging import logInfo
+from log.mm_logging import loggingContext, logInfo
 from aspn import aspn
 from parser.parse_buffer import ParseBuffer
 from parser.parse_error import ParseError
@@ -26,15 +26,6 @@ ARGUMENT_FORMATS = {
     "CHANNEL": FORMAT_CHANNEL,
     "NONE": FORMAT_NONE,
 }
-ARGUMENT_FORMAT_SHORTHANDS = {
-    "m": FORMAT_MIDI,
-    "a": FORMAT_ASPN,
-    "A": FORMAT_ASPN_UNICODE,
-    "p": FORMAT_PIANO,
-    "v": FORMAT_VELOCITY,
-    "t": FORMAT_TIME,
-    "c": FORMAT_CHANNEL,
-}
 
 
 def generateParseError(parseBuffer, expected, got):
@@ -54,24 +45,21 @@ def generateInvalidMIDIError(parseBuffer, note):
 
 
 def parseMacroFile(macroFile, source, profile, subprofile=None):
-    macroTree = MacroTree()
-    lines = [line[:-1] for line in macroFile.readlines()]
-    if not lines:
+    with loggingContext(profile, subprofile):
+        macroTree = MacroTree()
+        lines = [line[:-1] for line in macroFile.readlines()]
+        if not lines:
+            return macroTree
+        parseBuffer = ParseBuffer(lines, source)
+        while not parseBuffer.atEndOfBuffer():
+            macro = parseMacro(parseBuffer, profile, subprofile)
+            logInfo(f"adding macro: {macro}")
+            macroTree.addMacroToTree(macro)
+            parseBuffer.skipTillData()
         return macroTree
-    parseBuffer = ParseBuffer(lines, source)
-    while not parseBuffer.atEndOfBuffer():
-        macro = parseMacro(parseBuffer)
-        logInfo(
-            f"adding macro: {macro}",
-            profile,
-            subprofile,
-        )
-        macroTree.addMacroToTree(macro)
-        parseBuffer.skipTillData()
-    return macroTree
 
 
-def parseMacro(parseBuffer):
+def parseMacro(parseBuffer, profile, subprofile=None):
     triggers = parseTriggers(
         parseBuffer) if parseBuffer.getCurrentChar() != "*" else []
     parseBuffer.skipTillData()
@@ -95,15 +83,15 @@ def parseMacro(parseBuffer):
         parsedAnything = any(
             (parsedArgumentDefinition, parsedInterpreter, parsedScriptFlags)
         )
-        plusExpectedSpecifier = "or +" if not parsedAnything else ""
+        plusExpectedSpecifier = " or +" if not parsedAnything else ""
         argumentDefinitionExpectedSpecifier = (
-            "or argument definition" if not parsedAnything else ""
+            " or argument definition" if not parsedAnything else ""
         )
         interpreterExpectedSpecifier = (
-            "or interpreter" if (
+            " or interpreter" if (
                 not parsedInterpreter and not parsedScriptFlags) else ""
         )
-        scriptFlagsExpectedSpecifier = "or script flags" if not parsedScriptFlags else ""
+        scriptFlagsExpectedSpecifier = " or script flags" if not parsedScriptFlags else ""
         generateParseError(
             parseBuffer,
             f"arrow operator (->, →){plusExpectedSpecifier}{argumentDefinitionExpectedSpecifier}{interpreterExpectedSpecifier}{scriptFlagsExpectedSpecifier}",
@@ -112,7 +100,7 @@ def parseMacro(parseBuffer):
     eatArrow(parseBuffer)
     parseBuffer.skipTillData()
     script = Script(parseScript(parseBuffer),
-                    argumentDefinition, scriptFlags, interpreter)
+                    argumentDefinition, scriptFlags, interpreter, profile, subprofile)
     return Macro(triggers, script)
 
 
@@ -392,16 +380,14 @@ def parseArgumentDefinitionBody(parseBuffer):
         )
         if not argumentFormatString in ARGUMENT_FORMATS:
             replaceStringExpectedSpecifier = (
-                "or replace string"
+                " or replace string"
                 if (not parsedReplaceString and not parsedArgumentSeperator)
                 else ""
             )
             argumentSeperatorExpectedSpecifier = (
-                "or argument seperator" if not parsedArgumentSeperator else ""
+                " or argument seperator" if not parsedArgumentSeperator else ""
             )
-            otherExpectedSpecifier = (
-                f"f-string argument format{replaceStringExpectedSpecifier}{argumentSeperatorExpectedSpecifier}",
-            )
+            otherExpectedSpecifier = f"f-string argument format{replaceStringExpectedSpecifier}{argumentSeperatorExpectedSpecifier}"
             parseBuffer.jump(argumentFormatStringStart)
             generateParseError(
                 parseBuffer,
@@ -427,7 +413,7 @@ def parseQuotedString(parseBuffer, quoteChar='"'):
         )
 
 
-def readQuotedString(parseBuffer, quoteChar='"'):
+def readQuotedString(parseBuffer, quoteChar='"', returnString=True):
     if parseBuffer.getCurrentChar() != quoteChar:
         generateParseError(
             parseBuffer, f"{quoteChar}-quoted string", parseBuffer.getCurrentChar()
@@ -442,7 +428,8 @@ def readQuotedString(parseBuffer, quoteChar='"'):
         parseBuffer.skip(1)
     endPosition = parseBuffer.at()
     parseBuffer.skip(1)
-    return parseBuffer.stringFrom(startPosition, endPosition)
+    if returnString:
+        return parseBuffer.stringFrom(startPosition, endPosition)
 
 
 def parseArgumentSeperator(parseBuffer):
@@ -505,38 +492,10 @@ def parseFStringArgumentFormat(parseBuffer):
             "f-string argument format",
             parseBuffer.getCurrentChar(),
         )
+    fStringStart = parseBuffer.at()
     parseBuffer.skip(1)
-    fString = parseQuotedString(parseBuffer)
-    argumentFormatList = []
-    stringBuilder = []
-    escaping = False
-    currentStringStart = 0
-
-    def addStringBuilderToArgumentFormat():
-        if len(stringBuilder) == 0:
-            return
-        argumentFormatList.append("".join(stringBuilder))
-        stringBuilder.clear()
-
-    def addToStringBuilder(end=None):
-        if currentStringStart != len(fString):
-            stringBuilder.append(fString[currentStringStart:end])
-
-    for i, char in enumerate(fString):
-        if escaping and char == "%":
-            addToStringBuilder(i)
-            currentStringStart = i + 1
-        elif escaping and char in ARGUMENT_FORMAT_SHORTHANDS:
-            argumentFormat = ARGUMENT_FORMAT_SHORTHANDS[char]
-            if i - 1 > currentStringStart:
-                addToStringBuilder(i - 1)
-                addStringBuilderToArgumentFormat()
-            argumentFormatList.append(argumentFormat)
-            currentStringStart = i + 1
-        escaping = not escaping if char == "%" else False
-    addToStringBuilder()
-    addStringBuilderToArgumentFormat()
-    return argumentFormatList
+    readQuotedString(parseBuffer, returnString=False)
+    return parseBuffer.stringFrom(fStringStart, parseBuffer.at())
 
 
 def parseInterpreter(parseBuffer):

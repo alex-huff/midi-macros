@@ -92,9 +92,7 @@ class ArgumentDefinition:
         argumentFormatSpecifier = (
             self.argumentFormat.getName()
             if isinstance(self.argumentFormat, ArgumentFormat)
-            else "|".join(
-                s if isinstance(s, str) else str(s) for s in self.argumentFormat
-            )
+            else self.argumentFormat
         )
         return f"*{argumentNumRangeSpecifier}({replaceStringSpecifier}{argumentSeperatorSpecifier}{argumentFormatSpecifier})"
 

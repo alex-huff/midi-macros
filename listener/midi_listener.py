@@ -7,7 +7,7 @@ from rtmidi._rtmidi import (
     NoDevicesError,
 )
 from aspn import aspn
-from log.mm_logging import logInfo, exceptionStr
+from log.mm_logging import loggingContext, logInfo, exceptionStr
 from macro.matching import numNotesInTrigger, testTriggerWithPlayedNotes
 from listener.played_note import PlayedNote
 from listener.subprofile_holder import SubprofileHolder
@@ -37,7 +37,7 @@ class MidiListener:
         self.callbackQueue = callbackQueue
         subprofiles = self.config[SUBPROFILES]
         self.subprofileHolder = SubprofileHolder(
-            self.profile, subprofiles) if subprofiles else None
+            subprofiles) if subprofiles else None
         self.globalMacroTree = self.config[GLOBAL_MACROS]
         self.listenerLock = RLock()
         self.pressed = []
@@ -159,7 +159,7 @@ class MidiListener:
             )
 
     def __call__(self, event, data=None):
-        with self.listenerLock:
+        with self.listenerLock, loggingContext(self.profile):
             self.handleMIDIEvent(event)
 
     def handleSustainRelease(self):
@@ -175,7 +175,8 @@ class MidiListener:
             if self.lastChangeWasAdd:
                 self.executeMacros()
                 self.lastChangeWasAdd = False
-            self.pressed = [pn for pn in self.pressed if (pn.getNote(), pn.getChannel()) not in toRelease]
+            self.pressed = [pn for pn in self.pressed if (
+                pn.getNote(), pn.getChannel()) not in toRelease]
 
     def handleMIDIEvent(self, event):
         eventData, _ = event
@@ -237,22 +238,25 @@ class MidiListener:
         return False
 
     def executeMacros(self):
-        if self.handleTriggers() or not self.enabled:
-            return
-        logInfo(
-            f"evaluating pressed keys: {' '.join([f'{playedNote.getChannel()}:{aspn.midiNoteToASPN(playedNote.getNote())}' for playedNote in self.pressed])}",
-            self.profile,
-        )
-        self.globalMacroTree.executeMacros(self.pressed)
-        if not self.subprofileHolder:
-            return
-        self.subprofileHolder.getCurrentMacroTree().executeMacros(self.pressed)
+        # need to set context again since executeMacros can be called
+        # from the main thread when toggling virtual sustain
+        with loggingContext(self.profile):
+            if self.handleTriggers() or not self.enabled:
+                return
+            logInfo(
+                f"evaluating pressed keys: {' '.join([f'{playedNote.getChannel()}:{aspn.midiNoteToASPN(playedNote.getNote())}' for playedNote in self.pressed])}"
+            )
+            self.globalMacroTree.executeMacros(self.pressed)
+            if not self.subprofileHolder:
+                return
+            self.subprofileHolder.executeMacros(self.pressed)
 
     def run(self):
-        self.queueToggleCallback()
-        self.queueVirtualSustainCallback()
-        self.queueSubprofileCallback()
-        self.openMIDIPort()
+        with loggingContext(self.profile):
+            self.queueToggleCallback()
+            self.queueVirtualSustainCallback()
+            self.queueSubprofileCallback()
+            self.openMIDIPort()
 
     def openMIDIPort(self):
         try:
@@ -273,14 +277,14 @@ class MidiListener:
             )
 
     def stop(self):
-        if not hasattr(self, "midiin"):
-            return
-        # rtmidi internally will interrupt and join with callback thread
-        logInfo('closing midi port', profile=self.profile)
-        self.midiin.close_port()
-        del self.midiin
-        logInfo('waiting for queued script invocations to complete',
-                profile=self.profile)
-        self.globalMacroTree.shutdown()
-        if self.subprofileHolder:
-            self.subprofileHolder.shutdown()
+        with loggingContext(self.profile):
+            if not hasattr(self, "midiin"):
+                return
+            # rtmidi internally will interrupt and join with callback thread
+            logInfo('closing midi port')
+            self.midiin.close_port()
+            del self.midiin
+            logInfo('waiting for queued script invocations to complete')
+            self.globalMacroTree.shutdown()
+            if self.subprofileHolder:
+                self.subprofileHolder.shutdown()

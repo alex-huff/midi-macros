@@ -3,8 +3,8 @@ import tempfile
 import os
 from threading import Thread
 from queue import Queue, Empty
-from script.argument import ArgumentFormat
-from log.mm_logging import logError, exceptionStr
+from script.argument import *
+from log.mm_logging import loggingContext, logError, exceptionStr
 
 NONE = 0
 BLOCK = 2**0
@@ -17,12 +17,38 @@ FLAGS = {
 }
 
 
+def playedNoteFormatStringArgumentGenerator(playedNotes, argumentFormat):
+    for playedNote in playedNotes:
+        MIDI = FORMAT_MIDI.convert(playedNote)
+        ASPN = FORMAT_ASPN.convert(playedNote)
+        ASPN_UNICODE = FORMAT_ASPN_UNICODE.convert(playedNote)
+        PIANO = FORMAT_PIANO.convert(playedNote)
+        VELOCITY = FORMAT_VELOCITY.convert(playedNote)
+        TIME = FORMAT_TIME.convert(playedNote)
+        CHANNEL = FORMAT_CHANNEL.convert(playedNote)
+        NONE = FORMAT_NONE.convert(playedNote)
+        m = MIDI
+        a = ASPN
+        A = ASPN_UNICODE
+        p = PIANO
+        v = VELOCITY
+        t = TIME
+        c = CHANNEL
+        n = NONE
+        formattedString = eval(argumentFormat)
+        if not isinstance(formattedString, str):
+            raise ValueError
+        yield formattedString
+
+
 class Script:
-    def __init__(self, script, argumentDefinition, flags, interpreter):
+    def __init__(self, script, argumentDefinition, flags, interpreter, profile, subprofile=None):
         self.script = script
         self.argumentDefinition = argumentDefinition
         self.flags = flags
         self.interpreter = interpreter
+        self.profile = profile
+        self.subprofile = subprofile
         self.invocationQueue = Queue()
         self.invocationThread = None
         self.argsOverSTDIN = self.argumentDefinition and not self.argumentDefinition.getReplaceString()
@@ -49,31 +75,32 @@ class Script:
         return self.interpreter
 
     def invokeForever(self):
-        shuttingDown = False
-        while True:
-            invocations = [self.invocationQueue.get()]
-            try:
-                while True:
-                    invocations.append(self.invocationQueue.get_nowait())
-            except Empty:
-                pass
-            # shutdown signal
-            if invocations[-1] == None:
-                if len(invocations) == 1:
+        with loggingContext(self.profile, self.subprofile):
+            shuttingDown = False
+            while True:
+                invocations = [self.invocationQueue.get()]
+                try:
+                    while True:
+                        invocations.append(self.invocationQueue.get_nowait())
+                except Empty:
+                    pass
+                # shutdown signal
+                if invocations[-1] == None:
+                    if len(invocations) == 1:
+                        self.invocationQueue.task_done()
+                        break
+                    del invocations[-1]
+                    shuttingDown = True
+                if self.flags & DEBOUNCE:
+                    self.invokeScript(invocations[-1])
+                else:
+                    for invocation in invocations:
+                        self.invokeScript(invocation)
+                for _ in range(len(invocations)):
+                    self.invocationQueue.task_done()
+                if shuttingDown:
                     self.invocationQueue.task_done()
                     break
-                del invocations[-1]
-                shuttingDown = True
-            if self.flags & DEBOUNCE:
-                self.invokeScript(invocations[-1])
-            else:
-                for invocation in invocations:
-                    self.invokeScript(invocation)
-            for _ in range(len(invocations)):
-                self.invocationQueue.task_done()
-            if shuttingDown:
-                self.invocationQueue.task_done()
-                break
 
     def shutdown(self):
         """
@@ -92,7 +119,8 @@ class Script:
             env = None
             if self.scriptPathAsEnvVar:
                 env = os.environ.copy()
-                scriptFile = tempfile.NamedTemporaryFile(mode="w", delete=False)
+                scriptFile = tempfile.NamedTemporaryFile(
+                    mode="w", delete=False)
                 scriptFile.write(processedScript)
                 scriptFile.close()
                 env["MM_SCRIPT"] = scriptFile.name
@@ -126,18 +154,18 @@ class Script:
                 argumentFormat.convert(playedNote) for playedNote in args
             )
         else:
-            argumentGenerator = (
-                "".join(
-                    af if isinstance(af, str) else af.convert(playedNote)
-                    for af in argumentFormat
-                )
-                for playedNote in args
+            argumentGenerator = playedNoteFormatStringArgumentGenerator(
+                args, argumentFormat)
+        try:
+            processedArguments = self.argumentDefinition.getArgumentSeperator().join(
+                argumentGenerator
             )
-        processedArguments = self.argumentDefinition.getArgumentSeperator().join(
-            argumentGenerator
-        )
+        except Exception:
+            logError(f'failed to process arguments with argument format: {argumentFormat}')
+            return
         if replaceString:
-            self.runProcess(self.script.replace(replaceString, processedArguments))
+            self.runProcess(self.script.replace(
+                replaceString, processedArguments))
         else:
             self.runProcess(self.script, processedArguments)
 
