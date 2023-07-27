@@ -1,4 +1,6 @@
 import subprocess
+import tempfile
+import os
 from threading import Thread
 from queue import Queue, Empty
 from script.argument import ArgumentFormat
@@ -7,9 +9,11 @@ from log.mm_logging import logError, exceptionStr
 NONE = 0
 BLOCK = 2**0
 DEBOUNCE = 2**1
+SCRIPT_PATH_AS_ENV_VAR = 2**2
 FLAGS = {
     "BLOCK": BLOCK,
     "DEBOUNCE": DEBOUNCE,
+    "SCRIPT_PATH_AS_ENV_VAR": SCRIPT_PATH_AS_ENV_VAR
 }
 
 
@@ -21,6 +25,10 @@ class Script:
         self.interpreter = interpreter
         self.invocationQueue = Queue()
         self.invocationThread = None
+        self.argsOverSTDIN = self.argumentDefinition and not self.argumentDefinition.getReplaceString()
+        self.scriptPathAsEnvVar = (self.flags & SCRIPT_PATH_AS_ENV_VAR) or (
+            self.interpreter and self.argsOverSTDIN)
+        self.scriptOverSTDIN = self.interpreter and not self.scriptPathAsEnvVar
 
     def lazyInitializeThread(self):
         if self.invocationThread:
@@ -79,17 +87,28 @@ class Script:
         self.invocationThread.join()
         self.invocationThread = None
 
-    def runProcess(self, processedScript):
+    def runProcess(self, processedScript, processedInput=""):
         try:
+            env = None
+            if self.scriptPathAsEnvVar:
+                env = os.environ.copy()
+                scriptFile = tempfile.NamedTemporaryFile(mode="w", delete=False)
+                scriptFile.write(processedScript)
+                scriptFile.close()
+                env["MM_SCRIPT"] = scriptFile.name
             process = subprocess.Popen(
                 self.interpreter if self.interpreter else processedScript,
-                stdin=subprocess.PIPE if self.interpreter else None,
+                stdin=subprocess.PIPE if self.scriptOverSTDIN or self.argsOverSTDIN else None,
                 text=True,
                 shell=True,
                 start_new_session=True,
+                env=env
             )
-            if self.interpreter and process.stdin:
-                process.stdin.write(processedScript)
+            if process.stdin:
+                if self.scriptOverSTDIN:
+                    process.stdin.write(processedScript)
+                elif self.argsOverSTDIN:
+                    process.stdin.write(processedInput)
                 process.stdin.close()
             if self.flags & BLOCK:
                 process.wait()
@@ -114,16 +133,13 @@ class Script:
                 )
                 for playedNote in args
             )
-        argumentString = self.argumentDefinition.getArgumentSeperator().join(
+        processedArguments = self.argumentDefinition.getArgumentSeperator().join(
             argumentGenerator
         )
         if replaceString:
-            processedScript = self.script.replace(replaceString, argumentString)
-        elif not argumentString.isspace():
-            processedScript = f"{self.script} {argumentString}"
+            self.runProcess(self.script.replace(replaceString, processedArguments))
         else:
-            processedScript = self.script
-        self.runProcess(processedScript)
+            self.runProcess(self.script, processedArguments)
 
     def queueIfNumArgumentsAllowed(self, args):
         if not self.argumentDefinition:
@@ -148,6 +164,7 @@ class Script:
             if self.flags
             else ""
         )
-        indentedScript = "\n".join("\t" + line for line in self.script.splitlines())
+        indentedScript = "\n".join(
+            "\t" + line for line in self.script.splitlines())
         scriptSpecification = f"{{\n{indentedScript}\n}}"
         return f"{argumentDefinitionSpecification}{interpreterSpecification}{flagsSpecification}→\n{scriptSpecification}"

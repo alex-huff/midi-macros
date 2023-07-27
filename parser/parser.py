@@ -142,10 +142,9 @@ def parseTriggers(parseBuffer):
                 generateParseError(parseBuffer, ")",
                                    parseBuffer.getCurrentChar())
             parseBuffer.skip(1)
-            while not parseBuffer.atEndOfLine() and parseBuffer.getCurrentChar() == "{":
-                matchPredicate = parseMatchPredicate(parseBuffer)
-                for trigger in parenthesizedTriggers:
-                    trigger.addMatchPredicate(matchPredicate)
+            matchPredicates = parseMatchPredicates(parseBuffer)
+            for trigger in parenthesizedTriggers:
+                trigger.addMatchPredicates(matchPredicates)
             triggers.extend(parenthesizedTriggers)
         else:
             triggers.append(parseTrigger(parseBuffer))
@@ -185,8 +184,7 @@ def parseChord(parseBuffer):
             parseBuffer.skip(1)
             chord.sort(key=lambda macroNote: macroNote.getNote())
             macroChord = MacroChord(tuple(chord))
-            while not parseBuffer.atEndOfLine() and parseBuffer.getCurrentChar() == "{":
-                macroChord.addMatchPredicate(parseMatchPredicate(parseBuffer))
+            macroChord.addMatchPredicates(parseMatchPredicates(parseBuffer))
             return macroChord
         parseBuffer.skip(1)
 
@@ -209,8 +207,7 @@ def parseNote(parseBuffer):
         parseBuffer.jump(startPosition)
         generateInvalidMIDIError(parseBuffer, note)
     macroNote = MacroNote(note)
-    while not parseBuffer.atEndOfLine() and parseBuffer.getCurrentChar() == "{":
-        macroNote.addMatchPredicate(parseMatchPredicate(parseBuffer))
+    macroNote.addMatchPredicates(parseMatchPredicates(parseBuffer))
     return macroNote
 
 
@@ -268,6 +265,13 @@ def parseASPNModifiers(parseBuffer):
                 break
         parseBuffer.skip(1)
     return offset
+
+
+def parseMatchPredicates(parseBuffer):
+    matchPredicates = []
+    while not parseBuffer.atEndOfLine() and parseBuffer.getCurrentChar() == "{":
+        matchPredicates.append(parseMatchPredicate(parseBuffer))
+    return matchPredicates
 
 
 def parseMatchPredicate(parseBuffer):

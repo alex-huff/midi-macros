@@ -10,8 +10,10 @@ class MacroChord:
     def getMatchPredicates(self):
         return (matchPredicate for matchPredicate in self.matchPredicates)
 
-    def addMatchPredicate(self, matchPredicate):
-        self.matchPredicates.append(matchPredicate)
+    def addMatchPredicates(self, matchPredicates):
+        if not matchPredicates:
+            return
+        self.matchPredicates.extend(matchPredicates)
         self.tupleRep = None
 
     def getTupleRep(self):
