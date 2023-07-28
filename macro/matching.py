@@ -68,10 +68,10 @@ def testChordWithMacroChord(playedNotes, position, macroChord):
         for matchPredicate in macroChord.getMatchPredicates():
             if not eval(matchPredicate):
                 return False
-        return True
     except Exception:
         logMatchPredicateEvaluationError(matchPredicate)
         return False
+    return True
 
 
 def testNoteWithMacroNote(playedNotes, position, macroNote):
@@ -95,10 +95,10 @@ def testNoteWithMacroNote(playedNotes, position, macroNote):
         for matchPredicate in macroNote.getMatchPredicates():
             if not eval(matchPredicate):
                 return False
-        return True
     except Exception:
         logMatchPredicateEvaluationError(matchPredicate)
         return False
+    return True
 
 
 def testTriggerWithPlayedNotes(

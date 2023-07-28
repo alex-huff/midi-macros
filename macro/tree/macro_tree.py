@@ -40,9 +40,9 @@ class MacroTree:
     def executeScripts(self, currentNode, playedNotes, position):
         if not currentNode.getScripts():
             return
-        args = playedNotes[position:]
+        arguments = playedNotes[position:]
         for script in currentNode.getScripts():
-            script.queueIfNumArgumentsAllowed(args)
+            script.queueIfArgumentsMatch(arguments)
 
     def recurseMacroTreeAndExecuteMacros(self, currentNode, position, playedNotes):
         self.executeScripts(currentNode, playedNotes, position)

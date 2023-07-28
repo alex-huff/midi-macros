@@ -238,13 +238,11 @@ class MidiListener:
         return False
 
     def executeMacros(self):
-        # need to set context again since executeMacros can be called
-        # from the main thread when toggling virtual sustain
         with loggingContext(self.profile):
             if self.handleTriggers() or not self.enabled:
                 return
             logInfo(
-                f"evaluating pressed keys: {' '.join([f'{playedNote.getChannel()}:{aspn.midiNoteToASPN(playedNote.getNote())}' for playedNote in self.pressed])}"
+                f"evaluating pressed keys: {' '.join(f'{playedNote.getChannel()}:{aspn.midiNoteToASPN(playedNote.getNote())}' for playedNote in self.pressed)}"
             )
             self.globalMacroTree.executeMacros(self.pressed)
             if not self.subprofileHolder:

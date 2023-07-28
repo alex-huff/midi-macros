@@ -55,13 +55,13 @@ class ListMidiDevicesAction(argparse.Action):
 
 
 class MidiMacros:
-    def __init__(self, args):
+    def __init__(self, arguments):
         self.configDirPath = user_config_dir("midi-macros")
         self.macroDirPath = os.path.join(self.configDirPath, "macros")
         verifyDirectoryExists(self.configDirPath, "config")
         verifyDirectoryExists(self.macroDirPath, "macro")
-        if args.config:
-            self.configFilePath = args.config
+        if arguments.config:
+            self.configFilePath = arguments.config
         else:
             self.configFilePath = os.path.join(
                 self.configDirPath, "midi-macros.toml")
@@ -350,9 +350,9 @@ parser.add_argument(
 )
 parser.add_argument(
     "-c", "--config", help="use alternative configuration file")
-args = parser.parse_args()
+arguments = parser.parse_args()
 
-midiMacros = MidiMacros(args)
+midiMacros = MidiMacros(arguments)
 try:
     midiMacros.startServer()
 except KeyboardInterrupt:

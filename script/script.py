@@ -17,30 +17,6 @@ FLAGS = {
 }
 
 
-def playedNoteFormatStringArgumentGenerator(playedNotes, argumentFormat):
-    for playedNote in playedNotes:
-        MIDI = FORMAT_MIDI.convert(playedNote)
-        ASPN = FORMAT_ASPN.convert(playedNote)
-        ASPN_UNICODE = FORMAT_ASPN_UNICODE.convert(playedNote)
-        PIANO = FORMAT_PIANO.convert(playedNote)
-        VELOCITY = FORMAT_VELOCITY.convert(playedNote)
-        TIME = FORMAT_TIME.convert(playedNote)
-        CHANNEL = FORMAT_CHANNEL.convert(playedNote)
-        NONE = FORMAT_NONE.convert(playedNote)
-        m = MIDI
-        a = ASPN
-        A = ASPN_UNICODE
-        p = PIANO
-        v = VELOCITY
-        t = TIME
-        c = CHANNEL
-        n = NONE
-        formattedString = eval(argumentFormat)
-        if not isinstance(formattedString, str):
-            raise ValueError
-        yield formattedString
-
-
 class Script:
     def __init__(self, script, argumentDefinition, flags, interpreter, profile, subprofile=None):
         self.script = script
@@ -51,9 +27,10 @@ class Script:
         self.subprofile = subprofile
         self.invocationQueue = Queue()
         self.invocationThread = None
-        self.argsOverSTDIN = self.argumentDefinition and not self.argumentDefinition.getReplaceString()
+        self.argumentsOverSTDIN = argumentDefinition.acceptsArgs(
+        ) and not self.argumentDefinition.getReplaceString()
         self.scriptPathAsEnvVar = (self.flags & SCRIPT_PATH_AS_ENV_VAR) or (
-            self.interpreter and self.argsOverSTDIN)
+            self.interpreter and self.argumentsOverSTDIN)
         self.scriptOverSTDIN = self.interpreter and not self.scriptPathAsEnvVar
 
     def lazyInitializeThread(self):
@@ -126,7 +103,7 @@ class Script:
                 env["MM_SCRIPT"] = scriptFile.name
             process = subprocess.Popen(
                 self.interpreter if self.interpreter else processedScript,
-                stdin=subprocess.PIPE if self.scriptOverSTDIN or self.argsOverSTDIN else None,
+                stdin=subprocess.PIPE if self.scriptOverSTDIN or self.argumentsOverSTDIN else None,
                 text=True,
                 shell=True,
                 start_new_session=True,
@@ -135,7 +112,7 @@ class Script:
             if process.stdin:
                 if self.scriptOverSTDIN:
                     process.stdin.write(processedScript)
-                elif self.argsOverSTDIN:
+                elif self.argumentsOverSTDIN:
                     process.stdin.write(processedInput)
                 process.stdin.close()
             if self.flags & BLOCK:
@@ -143,49 +120,34 @@ class Script:
         except Exception as exception:
             logError(f"failed to run script, {exceptionStr(exception)}")
 
-    def invokeScript(self, args):
-        if not self.argumentDefinition:
-            self.runProcess(self.script)
-            return
-        argumentFormat = self.argumentDefinition.getArgumentFormat()
-        replaceString = self.argumentDefinition.getReplaceString()
-        if isinstance(argumentFormat, ArgumentFormat):
-            argumentGenerator = (
-                argumentFormat.convert(playedNote) for playedNote in args
-            )
-        else:
-            argumentGenerator = playedNoteFormatStringArgumentGenerator(
-                args, argumentFormat)
+    def invokeScript(self, arguments):
         try:
-            processedArguments = self.argumentDefinition.getArgumentSeperator().join(
-                argumentGenerator
-            )
+            processedArguments = self.argumentDefinition.processArguments(
+                arguments)
         except Exception:
-            logError(f'failed to process arguments with argument format: {argumentFormat}')
+            logError(
+                f'failed to process arguments with argument format: {self.argumentDefinition.getArgumentFormat()}')
             return
+        replaceString = self.argumentDefinition.getReplaceString()
         if replaceString:
             self.runProcess(self.script.replace(
                 replaceString, processedArguments))
-        else:
+        elif self.argumentsOverSTDIN:
             self.runProcess(self.script, processedArguments)
+        else:
+            self.runProcess(self.script)
 
-    def queueIfNumArgumentsAllowed(self, args):
-        if not self.argumentDefinition:
-            if len(args) == 0:
-                self.queue(args)
+    def queueIfArgumentsMatch(self, arguments):
+        if not self.argumentDefinition.argumentsMatch(arguments):
             return
-        if not self.argumentDefinition.testNumArguments(len(args)):
-            return
-        self.queue(args)
+        self.queue(arguments)
 
-    def queue(self, args):
+    def queue(self, arguments):
         self.lazyInitializeThread()
-        self.invocationQueue.put(args)
+        self.invocationQueue.put(arguments)
 
     def __str__(self):
-        argumentDefinitionSpecification = (
-            f"{self.argumentDefinition} " if self.argumentDefinition else ""
-        )
+        argumentDefinitionSpecification = f"{self.argumentDefinition} "
         interpreterSpecification = f'("{self.interpreter}")' if self.interpreter else ""
         flagsSpecification = (
             f"[{'|'.join(flag for flag in FLAGS if self.flags & FLAGS[flag])}]"

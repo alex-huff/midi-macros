@@ -66,7 +66,7 @@ def parseMacro(parseBuffer, profile, subprofile=None):
     argumentDefinition = ZERO_ARGUMENT_DEFINITION
     parsedArgumentDefinition = False
     if parseBuffer.getCurrentChar() == "*":
-        argumentDefinition = parseArgumentDefinition(parseBuffer)
+        argumentDefinition = parsePlayedNoteArgumentDefinition(parseBuffer)
         parseBuffer.skipTillData()
         parsedArgumentDefinition = True
     interpreter = None
@@ -289,22 +289,30 @@ def parseMatchPredicate(parseBuffer):
     return matchPredicate
 
 
-def parseArgumentDefinition(parseBuffer):
+def parsePlayedNoteArgumentDefinition(parseBuffer):
     if parseBuffer.getCurrentChar() != "*":
         generateParseError(parseBuffer, "*", parseBuffer.getCurrentChar())
     parseBuffer.skip(1)
-    if parseBuffer.getCurrentChar() not in "([":
-        generateParseError(
-            parseBuffer,
-            "argument number range or argument definition body",
-            parseBuffer.getCurrentChar(),
-        )
     argumentNumberRange = UNBOUNDED_ARGUMENT_NUMBER_RANGE
+    parsedArgumentNumberRange = False
     if parseBuffer.getCurrentChar() == "[":
         argumentNumberRange = parseArgumentNumberRange(parseBuffer)
-    argumentDefinition = parseArgumentDefinitionBody(parseBuffer)
-    argumentDefinition.setArgumentNumberRange(argumentNumberRange)
-    return argumentDefinition
+        parsedArgumentNumberRange = True
+    matchPredicates = []
+    parsedMatchPredicates = False
+    if parseBuffer.getCurrentChar() == "{":
+        matchPredicates = parseMatchPredicates(parseBuffer)
+        parsedMatchPredicates = True
+    if parseBuffer.getCurrentChar() != "(":
+        argumentNumberRangeExpectedSpecifier = " or argument number range" if (
+            not parsedArgumentNumberRange and not parsedMatchPredicates) else ""
+        matchPredicatesExpectedSpecifier = " or match predicates" if not parsedMatchPredicates else ""
+        generateParseError(
+            parseBuffer, f"argument definition body{argumentNumberRangeExpectedSpecifier}{matchPredicatesExpectedSpecifier}", parseBuffer.getCurrentChar())
+    argumentFormat, replaceString, argumentSeperator = parseArgumentDefinitionBody(
+        parseBuffer)
+    return PlayedNoteArgumentDefinition(
+        argumentFormat, replaceString, argumentSeperator, argumentNumberRange, matchPredicates)
 
 
 def parseArgumentNumberRange(parseBuffer):
@@ -398,7 +406,7 @@ def parseArgumentDefinitionBody(parseBuffer):
     if parseBuffer.getCurrentChar() != ")":
         generateParseError(parseBuffer, ")", parseBuffer.getCurrentChar())
     parseBuffer.skip(1)
-    return ArgumentDefinition(argumentFormat, replaceString, argumentSeperator)
+    return argumentFormat, replaceString, argumentSeperator
 
 
 def parseQuotedString(parseBuffer, quoteChar='"'):
