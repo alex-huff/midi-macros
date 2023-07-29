@@ -32,9 +32,9 @@ class SubprofileHolder:
         self.current = index
         return True
 
-    def executeMacros(self, pressed):
+    def executeMacros(self, pressed, midiMessage=None):
         with loggingContext(subprofile=self.getCurrent()):
-            self.getCurrentMacroTree().executeMacros(pressed)
+            self.getCurrentMacroTree().executeMacros(pressed, midiMessage)
 
     def getNames(self):
         return self.names

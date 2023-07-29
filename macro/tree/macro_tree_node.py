@@ -5,8 +5,8 @@ class MacroTreeNode:
     def __init__(self):
         self.branches = dict()
         self.scripts = []
-        self.minNotesTillScriptExecution = math.inf
-        self.maxNotesTillScriptExecution = 0
+        self.minActionsTillScriptExecution = math.inf
+        self.maxActionsTillScriptExecution = 0
 
     def setBranch(self, trigger, nextNode):
         self.branches[trigger] = nextNode
@@ -22,29 +22,29 @@ class MacroTreeNode:
         return self.branches
 
     def addScript(self, script):
-        self.updateNotesTillScriptExecution(script.getArgumentDefinition())
+        self.updateActionsTillScriptExecution(script.getArgumentDefinition())
         self.scripts.append(script)
 
     def getScripts(self):
         return self.scripts
 
-    def updateMinNotesTillScriptExecution(self, notes):
-        self.minNotesTillScriptExecution = min(self.minNotesTillScriptExecution, notes)
+    def updateMinActionsTillScriptExecution(self, notes):
+        self.minActionsTillScriptExecution = min(self.minActionsTillScriptExecution, notes)
 
-    def updateMaxNotesTillScriptExecution(self, notes):
-        self.maxNotesTillScriptExecution = max(self.maxNotesTillScriptExecution, notes)
+    def updateMaxActionsTillScriptExecution(self, notes):
+        self.maxActionsTillScriptExecution = max(self.maxActionsTillScriptExecution, notes)
 
-    def updateNotesTillScriptExecution(self, argumentDefinition, offset=0):
-        self.updateMinNotesTillScriptExecution(
+    def updateActionsTillScriptExecution(self, argumentDefinition, offset=0):
+        self.updateMinActionsTillScriptExecution(
             argumentDefinition.getArgumentNumberRange().getLowerBound() + offset
         )
-        self.updateMaxNotesTillScriptExecution(
+        self.updateMaxActionsTillScriptExecution(
             argumentDefinition.getArgumentNumberRange().getUpperBound() + offset
         )
 
-    def shouldProcessNumNotes(self, notes):
+    def shouldProcessNumActions(self, notes):
         return (
-            self.minNotesTillScriptExecution
+            self.minActionsTillScriptExecution
             <= notes
-            <= self.maxNotesTillScriptExecution
+            <= self.maxActionsTillScriptExecution
         )

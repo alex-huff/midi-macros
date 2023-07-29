@@ -11,7 +11,6 @@ from log.mm_logging import loggingContext, logInfo, exceptionStr
 from macro.matching import numNotesInTrigger, testTriggerWithPlayedNotes
 from listener.played_note import PlayedNote
 from listener.subprofile_holder import SubprofileHolder
-from midi.constants import *
 from callback.callback import Callback
 from config.mm_config import (
     MIDI_INPUT,
@@ -23,6 +22,9 @@ from config.mm_config import (
     SUBPROFILES,
     GLOBAL_MACROS,
 )
+from script.argument import MIDI_MESSAGE_FORMAT_MESSAGE_BYTES_HEX
+from midi.midi_message import MIDIMessage
+from midi.constants import *
 
 
 class ListenerException(Exception):
@@ -179,20 +181,25 @@ class MidiListener:
                 pn.getNote(), pn.getChannel()) not in toRelease]
 
     def handleMIDIEvent(self, event):
-        eventData, _ = event
-        if len(eventData) < 3:
+        message, _ = event
+        if not message:
             return
-        (status, data_1, data_2) = eventData
-        statusType = status >> 4
-        channel = status & 0xF
+        message = MIDIMessage(message)
+        self.executeMacros(message)
+        statusType = message.getStatus()
+        channel = message.getChannel()
+        data_1 = message.getData1()
+        data_2 = message.getData2()
+        if data_2 == None:
+            return
         if (
-            statusType != NOTE_ON_STATUS
-            and statusType != NOTE_OFF_STATUS
-            and (statusType != CONTROL_CHANGE_STATUS or data_1 != SUSTAIN_PEDAL)
+            statusType != NOTE_ON
+            and statusType != NOTE_OFF
+            and (statusType != CONTROL_CHANGE or data_1 != SUSTAIN_PEDAL)
         ):
             return
         wasSustainingOnChannel = self.pedalDown[channel] or self.virtualPedalDown
-        if statusType == CONTROL_CHANGE_STATUS:
+        if statusType == CONTROL_CHANGE:
             self.pedalDown[channel] = data_2 >= 64
             isSustainingOnChannel = self.pedalDown[channel] or self.virtualPedalDown
             if wasSustainingOnChannel and not isSustainingOnChannel:
@@ -201,7 +208,7 @@ class MidiListener:
         isSustainingOnChannel = wasSustainingOnChannel
         velocity = data_2
         note = data_1
-        wasPress = statusType == NOTE_ON_STATUS and velocity > 0
+        wasPress = statusType == NOTE_ON and velocity > 0
         nc = (note, channel)
         if wasPress:
             if nc in self.queuedReleases:
@@ -237,17 +244,18 @@ class MidiListener:
             return True
         return False
 
-    def executeMacros(self):
+    def executeMacros(self, midiMessage=None):
         with loggingContext(self.profile):
-            if self.handleTriggers() or not self.enabled:
+            if (not midiMessage and self.handleTriggers()) or not self.enabled:
                 return
+            midiMessageSpecifier = f" with MIDI message: {MIDI_MESSAGE_FORMAT_MESSAGE_BYTES_HEX.convert(midiMessage)}" if midiMessage else ""
             logInfo(
-                f"evaluating pressed keys: {' '.join(f'{playedNote.getChannel()}:{aspn.midiNoteToASPN(playedNote.getNote())}' for playedNote in self.pressed)}"
+                f"evaluating pressed keys: {' '.join(f'{playedNote.getChannel()}:{aspn.midiNoteToASPN(playedNote.getNote())}' for playedNote in self.pressed) if self.pressed else None}{midiMessageSpecifier}"
             )
-            self.globalMacroTree.executeMacros(self.pressed)
+            self.globalMacroTree.executeMacros(self.pressed, midiMessage)
             if not self.subprofileHolder:
                 return
-            self.subprofileHolder.executeMacros(self.pressed)
+            self.subprofileHolder.executeMacros(self.pressed, midiMessage)
 
     def run(self):
         with loggingContext(self.profile):

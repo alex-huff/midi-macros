@@ -91,7 +91,7 @@ class Script:
         self.invocationThread.join()
         self.invocationThread = None
 
-    def runProcess(self, processedScript, processedInput=""):
+    def runProcess(self, processedScript, processedInput=None):
         try:
             env = None
             if self.scriptPathAsEnvVar:
@@ -112,7 +112,7 @@ class Script:
             if process.stdin:
                 if self.scriptOverSTDIN:
                     process.stdin.write(processedScript)
-                elif self.argumentsOverSTDIN:
+                elif self.argumentsOverSTDIN and processedInput:
                     process.stdin.write(processedInput)
                 process.stdin.close()
             if self.flags & BLOCK:
@@ -123,7 +123,7 @@ class Script:
     def invokeScript(self, arguments):
         try:
             processedArguments = self.argumentDefinition.processArguments(
-                arguments)
+                arguments) if self.argumentDefinition.acceptsArgs() else None
         except Exception:
             logError(
                 f'failed to process arguments with argument format: {self.argumentDefinition.getArgumentFormat()}')

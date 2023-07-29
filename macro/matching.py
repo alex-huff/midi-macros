@@ -3,20 +3,7 @@ from statistics import mean
 from log.mm_logging import logError
 from macro.macro_note import MacroNote
 from macro.macro_chord import MacroChord
-
-
-def nanoSecondsToSeconds(elapsedTime):
-    return elapsedTime / 10**9
-
-
-def nanoSecondsToMilliseconds(elapsedTime):
-    return elapsedTime / 10**6
-
-
-SECONDS = nanoSecondsToSeconds
-sec = SECONDS
-MILLISECONDS = nanoSecondsToMilliseconds
-ms = MILLISECONDS
+from util.time_util import *
 
 
 def numNotesInTrigger(trigger):
