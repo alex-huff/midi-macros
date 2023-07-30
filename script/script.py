@@ -13,12 +13,14 @@ SCRIPT_PATH_AS_ENV_VAR = 2**2
 FLAGS = {
     "BLOCK": BLOCK,
     "DEBOUNCE": DEBOUNCE,
-    "SCRIPT_PATH_AS_ENV_VAR": SCRIPT_PATH_AS_ENV_VAR
+    "SCRIPT_PATH_AS_ENV_VAR": SCRIPT_PATH_AS_ENV_VAR,
 }
 
 
 class Script:
-    def __init__(self, script, argumentDefinition, flags, interpreter, profile, subprofile=None):
+    def __init__(
+        self, script, argumentDefinition, flags, interpreter, profile, subprofile=None
+    ):
         self.script = script
         self.argumentDefinition = argumentDefinition
         self.flags = flags
@@ -27,10 +29,13 @@ class Script:
         self.subprofile = subprofile
         self.invocationQueue = Queue()
         self.invocationThread = None
-        self.argumentsOverSTDIN = argumentDefinition.acceptsArgs(
-        ) and not self.argumentDefinition.getReplaceString()
+        self.argumentsOverSTDIN = (
+            argumentDefinition.acceptsArgs()
+            and not self.argumentDefinition.getReplaceString()
+        )
         self.scriptPathAsEnvVar = (self.flags & SCRIPT_PATH_AS_ENV_VAR) or (
-            self.interpreter and self.argumentsOverSTDIN)
+            self.interpreter and self.argumentsOverSTDIN
+        )
         self.scriptOverSTDIN = self.interpreter and not self.scriptPathAsEnvVar
 
     def lazyInitializeThread(self):
@@ -96,18 +101,19 @@ class Script:
             env = None
             if self.scriptPathAsEnvVar:
                 env = os.environ.copy()
-                scriptFile = tempfile.NamedTemporaryFile(
-                    mode="w", delete=False)
+                scriptFile = tempfile.NamedTemporaryFile(mode="w", delete=False)
                 scriptFile.write(processedScript)
                 scriptFile.close()
                 env["MM_SCRIPT"] = scriptFile.name
             process = subprocess.Popen(
                 self.interpreter if self.interpreter else processedScript,
-                stdin=subprocess.PIPE if self.scriptOverSTDIN or self.argumentsOverSTDIN else None,
+                stdin=subprocess.PIPE
+                if self.scriptOverSTDIN or self.argumentsOverSTDIN
+                else None,
                 text=True,
                 shell=True,
                 start_new_session=True,
-                env=env
+                env=env,
             )
             if process.stdin:
                 if self.scriptOverSTDIN:
@@ -122,16 +128,19 @@ class Script:
 
     def invokeScript(self, arguments):
         try:
-            processedArguments = self.argumentDefinition.processArguments(
-                arguments) if self.argumentDefinition.acceptsArgs() else None
+            processedArguments = (
+                self.argumentDefinition.processArguments(arguments)
+                if self.argumentDefinition.acceptsArgs()
+                else None
+            )
         except Exception:
             logError(
-                f'failed to process arguments with argument format: {self.argumentDefinition.getArgumentFormat()}')
+                f"failed to process arguments with argument format: {self.argumentDefinition.getArgumentFormat()}"
+            )
             return
         replaceString = self.argumentDefinition.getReplaceString()
         if replaceString:
-            self.runProcess(self.script.replace(
-                replaceString, processedArguments))
+            self.runProcess(self.script.replace(replaceString, processedArguments))
         elif self.argumentsOverSTDIN:
             self.runProcess(self.script, processedArguments)
         else:
@@ -154,7 +163,6 @@ class Script:
             if self.flags
             else ""
         )
-        indentedScript = "\n".join(
-            "\t" + line for line in self.script.splitlines())
+        indentedScript = "\n".join("\t" + line for line in self.script.splitlines())
         scriptSpecification = f"{{\n{indentedScript}\n}}"
         return f"{argumentDefinitionSpecification}{interpreterSpecification}{flagsSpecification}→\n{scriptSpecification}"

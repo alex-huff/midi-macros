@@ -10,6 +10,4 @@ class Macro:
         return self.script
 
     def __str__(self):
-        return (
-            f'{"+".join(str(t) for t in self.triggers)} {self.script}'
-        )
+        return f'{"+".join(str(t) for t in self.triggers)} {self.script}'

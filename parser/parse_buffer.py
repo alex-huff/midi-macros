@@ -25,7 +25,7 @@ class ParseBuffer:
         except IndexError:
             self.jumpToEndOfLine()
             raise ParseError(
-                f'unexpectedly reached end of line\n{self.currentLine}\n{self.generateArrowLine()}',
+                f"unexpectedly reached end of line\n{self.currentLine}\n{self.generateArrowLine()}",
                 self,
             )
 

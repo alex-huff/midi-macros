@@ -29,10 +29,14 @@ class MacroTreeNode:
         return self.scripts
 
     def updateMinActionsTillScriptExecution(self, notes):
-        self.minActionsTillScriptExecution = min(self.minActionsTillScriptExecution, notes)
+        self.minActionsTillScriptExecution = min(
+            self.minActionsTillScriptExecution, notes
+        )
 
     def updateMaxActionsTillScriptExecution(self, notes):
-        self.maxActionsTillScriptExecution = max(self.maxActionsTillScriptExecution, notes)
+        self.maxActionsTillScriptExecution = max(
+            self.maxActionsTillScriptExecution, notes
+        )
 
     def updateActionsTillScriptExecution(self, argumentDefinition, offset=0):
         self.updateMinActionsTillScriptExecution(

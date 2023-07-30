@@ -45,5 +45,5 @@ class SubprofileHolder:
     def shutdown(self):
         for subprofile, subprofileConfig in self.subprofiles.items():
             with loggingContext(subprofile=subprofile):
-                logInfo('waiting for queued script invocations to complete')
+                logInfo("waiting for queued script invocations to complete")
                 subprofileConfig[MACROS].shutdown()

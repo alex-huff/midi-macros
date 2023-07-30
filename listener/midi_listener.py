@@ -38,8 +38,7 @@ class MidiListener:
         self.config = config
         self.callbackQueue = callbackQueue
         subprofiles = self.config[SUBPROFILES]
-        self.subprofileHolder = SubprofileHolder(
-            subprofiles) if subprofiles else None
+        self.subprofileHolder = SubprofileHolder(subprofiles) if subprofiles else None
         self.globalMacroTree = self.config[GLOBAL_MACROS]
         self.listenerLock = RLock()
         self.pressed = []
@@ -51,11 +50,9 @@ class MidiListener:
         self.portName = None
         self.enableTrigger = self.config.get(ENABLE_TRIGGER)
         self.enableTriggerLength = (
-            numNotesInTrigger(
-                self.enableTrigger) if self.enableTrigger else None
+            numNotesInTrigger(self.enableTrigger) if self.enableTrigger else None
         )
-        self.cycleSubprofilesTrigger = self.config.get(
-            CYCLE_SUBPROFILES_TRIGGER)
+        self.cycleSubprofilesTrigger = self.config.get(CYCLE_SUBPROFILES_TRIGGER)
         self.cycleSubprofilesTriggerLength = (
             numNotesInTrigger(self.cycleSubprofilesTrigger)
             if self.cycleSubprofilesTrigger
@@ -121,7 +118,9 @@ class MidiListener:
                 "midi-input": self.portName,
                 "sustain": self.pedalDown,
                 "virtual-sustain": self.virtualPedalDown,
-                "subprofiles": self.subprofileHolder.getInfo() if self.subprofileHolder else None,
+                "subprofiles": self.subprofileHolder.getInfo()
+                if self.subprofileHolder
+                else None,
             }
 
     def booleanCallbackMessage(self, enabled):
@@ -170,15 +169,20 @@ class MidiListener:
                 toRelease.add(nc)
                 return True
             return False
+
         toRelease = set()
         self.queuedReleases = {
-            nc for nc in self.queuedReleases if not shouldRelease(nc)}
+            nc for nc in self.queuedReleases if not shouldRelease(nc)
+        }
         if len(toRelease) > 0:
             if self.lastChangeWasAdd:
                 self.executeMacros()
                 self.lastChangeWasAdd = False
-            self.pressed = [pn for pn in self.pressed if (
-                pn.getNote(), pn.getChannel()) not in toRelease]
+            self.pressed = [
+                pn
+                for pn in self.pressed
+                if (pn.getNote(), pn.getChannel()) not in toRelease
+            ]
 
     def handleMIDIEvent(self, event):
         message, _ = event
@@ -213,8 +217,7 @@ class MidiListener:
         if wasPress:
             if nc in self.queuedReleases:
                 self.queuedReleases.remove(nc)
-            self.pressed.append(PlayedNote(
-                note, channel, velocity, time.time_ns()))
+            self.pressed.append(PlayedNote(note, channel, velocity, time.time_ns()))
         else:
             if isSustainingOnChannel:
                 self.queuedReleases.add(nc)
@@ -222,8 +225,11 @@ class MidiListener:
             else:
                 if self.lastChangeWasAdd:
                     self.executeMacros()
-                self.pressed = [pn for pn in self.pressed if pn.getNote() !=
-                                note or pn.getChannel() != channel]
+                self.pressed = [
+                    pn
+                    for pn in self.pressed
+                    if pn.getNote() != note or pn.getChannel() != channel
+                ]
         self.lastChangeWasAdd = wasPress
 
     def testTrigger(self, trigger, triggerLength):
@@ -248,7 +254,11 @@ class MidiListener:
         with loggingContext(self.profile):
             if (not midiMessage and self.handleTriggers()) or not self.enabled:
                 return
-            midiMessageSpecifier = f" with MIDI message: {MIDI_MESSAGE_FORMAT_MESSAGE_BYTES_HEX.convert(midiMessage)}" if midiMessage else ""
+            midiMessageSpecifier = (
+                f" with MIDI message: {MIDI_MESSAGE_FORMAT_MESSAGE_BYTES_HEX.convert(midiMessage)}"
+                if midiMessage
+                else ""
+            )
             logInfo(
                 f"evaluating pressed keys: {' '.join(f'{playedNote.getChannel()}:{aspn.midiNoteToASPN(playedNote.getNote())}' for playedNote in self.pressed) if self.pressed else None}{midiMessageSpecifier}"
             )
@@ -271,8 +281,7 @@ class MidiListener:
             )
             self.midiin.set_callback(self)
         except InvalidPortError:
-            raise ListenerException(
-                f"invalid midi port: {self.config[MIDI_INPUT]}")
+            raise ListenerException(f"invalid midi port: {self.config[MIDI_INPUT]}")
         except RTMIDISystemError:
             raise ListenerException("MIDI system error")
         except NoDevicesError:
@@ -287,10 +296,10 @@ class MidiListener:
             if not hasattr(self, "midiin"):
                 return
             # rtmidi internally will interrupt and join with callback thread
-            logInfo('closing midi port')
+            logInfo("closing midi port")
             self.midiin.close_port()
             del self.midiin
-            logInfo('waiting for queued script invocations to complete')
+            logInfo("waiting for queued script invocations to complete")
             self.globalMacroTree.shutdown()
             if self.subprofileHolder:
                 self.subprofileHolder.shutdown()

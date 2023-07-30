@@ -23,8 +23,11 @@ class MacroChord:
 
     def __str__(self):
         matchPredicatesSpecifier = "".join(
-            f"{{{matchPredicate}}}" for matchPredicate in self.matchPredicates)
-        return f'[{"|".join(str(note) for note in self.chord)}]{matchPredicatesSpecifier}'
+            f"{{{matchPredicate}}}" for matchPredicate in self.matchPredicates
+        )
+        return (
+            f'[{"|".join(str(note) for note in self.chord)}]{matchPredicatesSpecifier}'
+        )
 
     def __eq__(self, other):
         if isinstance(other, MacroChord):

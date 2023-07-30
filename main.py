@@ -63,8 +63,7 @@ class MidiMacros:
         if arguments.config:
             self.configFilePath = arguments.config
         else:
-            self.configFilePath = os.path.join(
-                self.configDirPath, "midi-macros.toml")
+            self.configFilePath = os.path.join(self.configDirPath, "midi-macros.toml")
             if not os.path.exists(self.configFilePath):
                 logInfo(
                     f"Config file {self.configFilePath} does not exist, creating it now"
@@ -72,8 +71,7 @@ class MidiMacros:
                 open(self.configFilePath, "a").close()
         self.initConfig()
         self.callbackQueue = Queue()
-        self.callbackThread = Thread(
-            target=self.executeCallbacksForever, daemon=True)
+        self.callbackThread = Thread(target=self.executeCallbacksForever, daemon=True)
         self.callbackThread.start()
         self.initialize()
 
@@ -90,8 +88,7 @@ class MidiMacros:
             for callback in callbacks:
                 profile = callback.getProfile()
                 if profileConfigs[profile][DEBOUNCE_CALLBACKS]:
-                    debouncedCallbacks[profile][callback.getCallbackType(
-                    )] = callback
+                    debouncedCallbacks[profile][callback.getCallbackType()] = callback
                 else:
                     self.executeCallback(callback)
             for debouncedCallbacksForProfile in debouncedCallbacks.values():
@@ -121,19 +118,19 @@ class MidiMacros:
         self.createAndRunListeners()
 
     def shutdown(self):
-        logInfo('stopping listeners')
+        logInfo("stopping listeners")
         self.stopListeners()
-        logInfo('waiting for callbacks to complete')
+        logInfo("waiting for callbacks to complete")
         self.callbackQueue.join()
 
     def reload(self):
-        logInfo('shutting down profiles')
+        logInfo("shutting down profiles")
         self.shutdown()
-        logInfo('reloading configuration')
+        logInfo("reloading configuration")
         result = self.reloadConfig()
-        logInfo('initializing midi listeners')
+        logInfo("initializing midi listeners")
         self.initialize()
-        logInfo('reload completed')
+        logInfo("reload completed")
         return result
 
     def initConfig(self):
@@ -152,8 +149,7 @@ class MidiMacros:
             with loggingContext(configException.profile, configException.subprofile):
                 logError(configException.message)
         except (FileNotFoundError, IsADirectoryError):
-            logError(
-                f"config file path: {self.configFilePath}, was not a valid file")
+            logError(f"config file path: {self.configFilePath}, was not a valid file")
         except PermissionError:
             logError(
                 f"insufficient permissions to open config file: {self.configFilePath}"
@@ -173,12 +169,10 @@ class MidiMacros:
     def fixMacroFilePaths(self, config):
         for profileConfig in config[PROFILES].values():
             givenMacroFilePath = profileConfig[GLOBAL_MACROS]
-            profileConfig[GLOBAL_MACROS] = self.fixMacroFilePath(
-                givenMacroFilePath)
+            profileConfig[GLOBAL_MACROS] = self.fixMacroFilePath(givenMacroFilePath)
             for subprofileConfig in profileConfig[SUBPROFILES].values():
                 givenMacroFilePath = subprofileConfig[MACROS]
-                subprofileConfig[MACROS] = self.fixMacroFilePath(
-                    givenMacroFilePath)
+                subprofileConfig[MACROS] = self.fixMacroFilePath(givenMacroFilePath)
 
     def parseControlTrigger(self, config, triggerType, profile=None, subprofile=None):
         try:
@@ -210,15 +204,13 @@ class MidiMacros:
         for profile, profileConfig in config[PROFILES].items():
             for triggerType in TRIGGER_TYPES:
                 if triggerType in profileConfig:
-                    self.parseControlTrigger(
-                        profileConfig, triggerType, profile)
+                    self.parseControlTrigger(profileConfig, triggerType, profile)
 
     def buildMacroTree(self, macroFilePath, profile, subprofile=None):
         try:
             with open(macroFilePath, "r") as macroFile:
                 return parseMacroFile(
-                    macroFile, os.path.basename(
-                        macroFilePath), profile, subprofile
+                    macroFile, os.path.basename(macroFilePath), profile, subprofile
                 )
         except ParseError as parseError:
             raise ConfigException(
@@ -246,8 +238,7 @@ class MidiMacros:
     def buildMacroTrees(self, config):
         for profile, profileConfig in config[PROFILES].items():
             macroFilePath = profileConfig[GLOBAL_MACROS]
-            profileConfig[GLOBAL_MACROS] = self.buildMacroTree(
-                macroFilePath, profile)
+            profileConfig[GLOBAL_MACROS] = self.buildMacroTree(macroFilePath, profile)
             for subprofile, subprofileConfig in profileConfig[SUBPROFILES].items():
                 macroFilePath = subprofileConfig[MACROS]
                 subprofileConfig[MACROS] = self.buildMacroTree(
@@ -294,8 +285,7 @@ class MidiMacros:
         try:
             mode = os.stat(self.unixSocketPath).st_mode
             if not stat.S_ISSOCK(mode):
-                logError(
-                    f"file: {self.unixSocketPath}, exists and is not a socket")
+                logError(f"file: {self.unixSocketPath}, exists and is not a socket")
                 sys.exit(-1)
             os.unlink(self.unixSocketPath)
         except FileNotFoundError:
@@ -348,8 +338,7 @@ parser.add_argument(
     nargs=0,
     help="list connected MIDI device names",
 )
-parser.add_argument(
-    "-c", "--config", help="use alternative configuration file")
+parser.add_argument("-c", "--config", help="use alternative configuration file")
 arguments = parser.parse_args()
 
 midiMacros = MidiMacros(arguments)

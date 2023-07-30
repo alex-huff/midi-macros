@@ -32,39 +32,47 @@ PLAYED_NOTE_FORMAT_ASPN = ArgumentFormat(
 PLAYED_NOTE_FORMAT_ASPN_UNICODE = ArgumentFormat(
     lambda pn: midiNoteToASPN(pn.getNote()), "ASPN_UNICODE"
 )
-PLAYED_NOTE_FORMAT_PIANO = ArgumentFormat(
-    lambda pn: str(pn.getNote() - 20), "PIANO")
+PLAYED_NOTE_FORMAT_PIANO = ArgumentFormat(lambda pn: str(pn.getNote() - 20), "PIANO")
 PLAYED_NOTE_FORMAT_VELOCITY = ArgumentFormat(
-    lambda pn: str(pn.getVelocity()), "VELOCITY")
+    lambda pn: str(pn.getVelocity()), "VELOCITY"
+)
 PLAYED_NOTE_FORMAT_TIME = ArgumentFormat(lambda pn: str(pn.getTime()), "TIME")
-PLAYED_NOTE_FORMAT_CHANNEL = ArgumentFormat(
-    lambda pn: str(pn.getChannel()), "CHANNEL")
+PLAYED_NOTE_FORMAT_CHANNEL = ArgumentFormat(lambda pn: str(pn.getChannel()), "CHANNEL")
 
 MIDI_MESSAGE_FORMAT_MESSAGE_BYTES = ArgumentFormat(
-    lambda m: "-".join(str(d) for d in m.getMessage()), "MESSAGE_BYTES")
+    lambda m: "-".join(str(d) for d in m.getMessage()), "MESSAGE_BYTES"
+)
 MIDI_MESSAGE_FORMAT_MESSAGE_BYTES_HEX = ArgumentFormat(
-    lambda m: "-".join(hex(d) for d in m.getMessage()), "MESSAGE_BYTES_HEX")
-MIDI_MESSAGE_FORMAT_STATUS = ArgumentFormat(
-    lambda m: str(m.getStatus()), "STATUS")
-MIDI_MESSAGE_FORMAT_CHANNEL = ArgumentFormat(
-    lambda m: str(m.getChannel()), "CHANNEL")
+    lambda m: "-".join(hex(d) for d in m.getMessage()), "MESSAGE_BYTES_HEX"
+)
+MIDI_MESSAGE_FORMAT_STATUS = ArgumentFormat(lambda m: str(m.getStatus()), "STATUS")
+MIDI_MESSAGE_FORMAT_CHANNEL = ArgumentFormat(lambda m: str(m.getChannel()), "CHANNEL")
 MIDI_MESSAGE_FORMAT_DATA_0 = ArgumentFormat(lambda m: str(m.getData0()), "DATA_0")
 MIDI_MESSAGE_FORMAT_DATA_1 = ArgumentFormat(lambda m: str(m.getData1()), "DATA_1")
 MIDI_MESSAGE_FORMAT_DATA_2 = ArgumentFormat(lambda m: str(m.getData2()), "DATA_2")
 MIDI_MESSAGE_FORMAT_STATUS_HEX = ArgumentFormat(
-    lambda m: hex(m.getStatus()), "STATUS_HEX")
+    lambda m: hex(m.getStatus()), "STATUS_HEX"
+)
 MIDI_MESSAGE_FORMAT_CHANNEL_HEX = ArgumentFormat(
-    lambda m: hex(m.getChannel()), "CHANNEL_HEX")
+    lambda m: hex(m.getChannel()), "CHANNEL_HEX"
+)
 MIDI_MESSAGE_FORMAT_DATA_0_HEX = ArgumentFormat(
-    lambda m: hex(m.getData0()), "DATA_0_HEX")
+    lambda m: hex(m.getData0()), "DATA_0_HEX"
+)
 MIDI_MESSAGE_FORMAT_DATA_1_HEX = ArgumentFormat(
-    lambda m: hex(m.getData1()), "DATA_1_HEX")
+    lambda m: hex(m.getData1()), "DATA_1_HEX"
+)
 MIDI_MESSAGE_FORMAT_DATA_2_HEX = ArgumentFormat(
-    lambda m: hex(m.getData2()), "DATA_2_HEX")
-MIDI_MESSAGE_FORMAT_CC_VALUE_PERCENT = ArgumentFormat(lambda m: str(
-    round(100 * m.getData2() / 127)) if m.getData2() != None else "None", "CC_VALUE_PERCENT")
-MIDI_MESSAGE_FORMAT_CC_VALUE_BOOL = ArgumentFormat(lambda m: str(
-    m.getData2() >= 64) if m.getData2() != None else "None", "CC_VALUE_BOOL")
+    lambda m: hex(m.getData2()), "DATA_2_HEX"
+)
+MIDI_MESSAGE_FORMAT_CC_VALUE_PERCENT = ArgumentFormat(
+    lambda m: str(round(100 * m.getData2() / 127)) if m.getData2() != None else "None",
+    "CC_VALUE_PERCENT",
+)
+MIDI_MESSAGE_FORMAT_CC_VALUE_BOOL = ArgumentFormat(
+    lambda m: str(m.getData2() >= 64) if m.getData2() != None else "None",
+    "CC_VALUE_BOOL",
+)
 
 FORMAT_NONE = ArgumentFormat(lambda _: "", "NONE")
 
@@ -100,7 +108,7 @@ class ArgumentDefinition(ABC):
         replaceString=None,
         argumentSeperator=" ",
         argumentNumberRange=UNBOUNDED_ARGUMENT_NUMBER_RANGE,
-        matchPredicates=[]
+        matchPredicates=[],
     ):
         self.argumentFormat = argumentFormat
         self.argumentType = argumentType
@@ -132,10 +140,16 @@ class ArgumentDefinition(ABC):
         return self.argumentNumberRange.test(numArguments)
 
     def acceptsArgs(self):
-        return self.argumentNumberRange.acceptsArgs() and (self.replaceString or self.argumentFormat != FORMAT_NONE)
+        return self.argumentNumberRange.acceptsArgs() and (
+            self.replaceString or self.argumentFormat != FORMAT_NONE
+        )
 
     def argumentsMatch(self, arguments):
-        return self.testNumArguments(len(arguments)) and self.verifyArgumentTypes(arguments) and self.testMatchPredicates(arguments)
+        return (
+            self.testNumArguments(len(arguments))
+            and self.verifyArgumentTypes(arguments)
+            and self.testMatchPredicates(arguments)
+        )
 
     def verifyArgumentTypes(self, arguments):
         return all(isinstance(argument, self.argumentType) for argument in arguments)
@@ -152,7 +166,9 @@ class ArgumentDefinition(ABC):
             return False
 
     def processArguments(self, arguments):
-        return self.argumentSeperator.join(self.argumentProcessor(argument) for argument in arguments)
+        return self.argumentSeperator.join(
+            self.argumentProcessor(argument) for argument in arguments
+        )
 
     @abstractmethod
     def processFStringArgumentFormat(self, argument):
@@ -169,7 +185,8 @@ class ArgumentDefinition(ABC):
     def __str__(self):
         argumentNumRangeSpecifier = f"[{self.argumentNumberRange.getLowerBound()}:{self.argumentNumberRange.getUpperBound()}]"
         matchPredicatesSpecifier = "".join(
-            f"{{{matchPredicate}}}" for matchPredicate in self.matchPredicates)
+            f"{{{matchPredicate}}}" for matchPredicate in self.matchPredicates
+        )
         replaceStringSpecifier = (
             f'"{self.replaceString}"→' if self.replaceString else ""
         )
@@ -186,7 +203,9 @@ class ArgumentDefinition(ABC):
 
 class ZeroArgumentDefinition(ArgumentDefinition):
     def __init__(self):
-        super().__init__(FORMAT_NONE, None, argumentNumberRange=ZERO_ARGUMENT_NUMBER_RANGE)
+        super().__init__(
+            FORMAT_NONE, None, argumentNumberRange=ZERO_ARGUMENT_NUMBER_RANGE
+        )
 
     def getIdentifier(self):
         return "0"
@@ -199,9 +218,22 @@ class ZeroArgumentDefinition(ArgumentDefinition):
 
 
 class PlayedNotesArgumentDefinition(ArgumentDefinition):
-    def __init__(self, argumentFormat, replaceString, argumentSeperator, argumentNumberRange, matchPredicates):
-        super().__init__(argumentFormat, PlayedNote, replaceString,
-                         argumentSeperator, argumentNumberRange, matchPredicates)
+    def __init__(
+        self,
+        argumentFormat,
+        replaceString,
+        argumentSeperator,
+        argumentNumberRange,
+        matchPredicates,
+    ):
+        super().__init__(
+            argumentFormat,
+            PlayedNote,
+            replaceString,
+            argumentSeperator,
+            argumentNumberRange,
+            matchPredicates,
+        )
 
     def getIdentifier(self):
         return "*"
@@ -210,7 +242,11 @@ class PlayedNotesArgumentDefinition(ArgumentDefinition):
         NOTES = arguments
         CHANNEL = {n.getChannel() for n in NOTES}
         CHANNEL = tuple(CHANNEL)[0] if len(CHANNEL) == 1 else CHANNEL
-        NOTES_START_TIME = NOTES_FINISH_TIME = NOTES_ELAPSED_TIME = NOTES_MIN_VELOCITY = NOTES_MAX_VELOCITY = NOTES_AVERAGE_VELOCITY = None
+        NOTES_START_TIME = (
+            NOTES_FINISH_TIME
+        ) = (
+            NOTES_ELAPSED_TIME
+        ) = NOTES_MIN_VELOCITY = NOTES_MAX_VELOCITY = NOTES_AVERAGE_VELOCITY = None
         if len(arguments) > 0:
             NOTES_START_TIME = NOTES[0].getTime()
             NOTES_FINISH_TIME = NOTES[-1].getTime()
@@ -221,8 +257,9 @@ class PlayedNotesArgumentDefinition(ArgumentDefinition):
         CHANNELS = [n.getChannel() for n in NOTES]
         VELOCITIES = [n.getVelocity() for n in NOTES]
         TIMES = [n.getTime() for n in NOTES]
-        ELAPSED_TIMES = [(TIMES[i] - TIMES[i - 1]) if i >
-                         0 else 0 for i in range(len(TIMES))]
+        ELAPSED_TIMES = [
+            (TIMES[i] - TIMES[i - 1]) if i > 0 else 0 for i in range(len(TIMES))
+        ]
         ns = NOTES
         c = CHANNEL
         nst = NOTES_START_TIME
@@ -266,8 +303,13 @@ class PlayedNotesArgumentDefinition(ArgumentDefinition):
 
 class MIDIMessageArgumentDefinition(ArgumentDefinition):
     def __init__(self, argumentFormat, replaceString, matchPredicates):
-        super().__init__(argumentFormat, MIDIMessage, replaceString,
-                         argumentNumberRange=SINGLE_ARGUMENT_NUMBER_RANGE, matchPredicates=matchPredicates)
+        super().__init__(
+            argumentFormat,
+            MIDIMessage,
+            replaceString,
+            argumentNumberRange=SINGLE_ARGUMENT_NUMBER_RANGE,
+            matchPredicates=matchPredicates,
+        )
 
     def getIdentifier(self):
         return "MIDI"

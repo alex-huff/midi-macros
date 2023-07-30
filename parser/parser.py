@@ -24,7 +24,7 @@ PLAYED_NOTE_ARGUMENT_FORMATS = {
     "VELOCITY": PLAYED_NOTE_FORMAT_VELOCITY,
     "TIME": PLAYED_NOTE_FORMAT_TIME,
     "CHANNEL": PLAYED_NOTE_FORMAT_CHANNEL,
-    "NONE": FORMAT_NONE
+    "NONE": FORMAT_NONE,
 }
 MIDI_ARGUMENT_FORMATS = {
     "MESSAGE_BYTES": MIDI_MESSAGE_FORMAT_MESSAGE_BYTES,
@@ -41,7 +41,7 @@ MIDI_ARGUMENT_FORMATS = {
     "DATA_2_HEX": MIDI_MESSAGE_FORMAT_DATA_2_HEX,
     "CC_VALUE_PERCENT": MIDI_MESSAGE_FORMAT_CC_VALUE_PERCENT,
     "CC_VALUE_BOOL": MIDI_MESSAGE_FORMAT_CC_VALUE_BOOL,
-    "NONE": FORMAT_NONE
+    "NONE": FORMAT_NONE,
 }
 
 
@@ -77,8 +77,14 @@ def parseMacroFile(macroFile, source, profile, subprofile=None):
 
 
 def parseMacro(parseBuffer, profile, subprofile=None):
-    triggers = parseTriggers(
-        parseBuffer) if (parseBuffer.getCurrentChar() != "*" and not bufferHasSubstring(parseBuffer, "MIDI")) else []
+    triggers = (
+        parseTriggers(parseBuffer)
+        if (
+            parseBuffer.getCurrentChar() != "*"
+            and not bufferHasSubstring(parseBuffer, "MIDI")
+        )
+        else []
+    )
     parseBuffer.skipTillData()
     argumentDefinition = ZERO_ARGUMENT_DEFINITION
     parsedArgumentDefinition = False
@@ -105,10 +111,13 @@ def parseMacro(parseBuffer, profile, subprofile=None):
             " or argument definition" if not parsedAnything else ""
         )
         interpreterExpectedSpecifier = (
-            " or interpreter" if (
-                not parsedInterpreter and not parsedScriptFlags) else ""
+            " or interpreter"
+            if (not parsedInterpreter and not parsedScriptFlags)
+            else ""
         )
-        scriptFlagsExpectedSpecifier = " or script flags" if not parsedScriptFlags else ""
+        scriptFlagsExpectedSpecifier = (
+            " or script flags" if not parsedScriptFlags else ""
+        )
         generateParseError(
             parseBuffer,
             f"arrow operator (->, →){plusExpectedSpecifier}{argumentDefinitionExpectedSpecifier}{interpreterExpectedSpecifier}{scriptFlagsExpectedSpecifier}",
@@ -116,8 +125,14 @@ def parseMacro(parseBuffer, profile, subprofile=None):
         )
     eatArrow(parseBuffer)
     parseBuffer.skipTillData()
-    script = Script(parseScript(parseBuffer),
-                    argumentDefinition, scriptFlags, interpreter, profile, subprofile)
+    script = Script(
+        parseScript(parseBuffer),
+        argumentDefinition,
+        scriptFlags,
+        interpreter,
+        profile,
+        subprofile,
+    )
     return Macro(triggers, script)
 
 
@@ -144,8 +159,7 @@ def parseTriggers(parseBuffer):
             parenthesizedTriggers = parseTriggers(parseBuffer)
             parseBuffer.skipTillData()
             if not parseBuffer.getCurrentChar() == ")":
-                generateParseError(parseBuffer, ")",
-                                   parseBuffer.getCurrentChar())
+                generateParseError(parseBuffer, ")", parseBuffer.getCurrentChar())
             parseBuffer.skip(1)
             matchPredicates = parseMatchPredicates(parseBuffer)
             for trigger in parenthesizedTriggers:
@@ -168,8 +182,7 @@ def parseTrigger(parseBuffer):
         parseBuffer.getCurrentChar()
     ):
         return parseNote(parseBuffer)
-    generateParseError(parseBuffer, "note or chord",
-                       parseBuffer.getCurrentChar())
+    generateParseError(parseBuffer, "note or chord", parseBuffer.getCurrentChar())
 
 
 def parseChord(parseBuffer):
@@ -183,8 +196,7 @@ def parseChord(parseBuffer):
         chord.append(note)
         parseBuffer.skipTillData()
         if parseBuffer.getCurrentChar() not in "|]":
-            generateParseError(parseBuffer, "| or ]",
-                               parseBuffer.getCurrentChar())
+            generateParseError(parseBuffer, "| or ]", parseBuffer.getCurrentChar())
         if parseBuffer.getCurrentChar() == "]":
             parseBuffer.skip(1)
             chord.sort(key=lambda macroNote: macroNote.getNote())
@@ -218,8 +230,7 @@ def parseNote(parseBuffer):
 
 def parseASPNNote(parseBuffer):
     if not BASE_PITCH_REGEX.match(parseBuffer.getCurrentChar()):
-        generateParseError(parseBuffer, "ASPN note",
-                           parseBuffer.getCurrentChar())
+        generateParseError(parseBuffer, "ASPN note", parseBuffer.getCurrentChar())
     offset = 0
     basePitch = str.upper(parseBuffer.getCurrentChar())
     parseBuffer.skip(1)
@@ -281,8 +292,7 @@ def parseMatchPredicates(parseBuffer):
 
 def parseMatchPredicate(parseBuffer):
     if parseBuffer.getCurrentChar() != "{":
-        generateParseError(parseBuffer, "match predicate",
-                           parseBuffer.getCurrentChar())
+        generateParseError(parseBuffer, "match predicate", parseBuffer.getCurrentChar())
     parseBuffer.skip(1)
     startPosition = parseBuffer.at()
     numUnmatchedOpenLeftCurlyBraces = 0
@@ -307,9 +317,14 @@ def parseMatchPredicate(parseBuffer):
 
 
 def parseArgumentDefinition(parseBuffer):
-    if parseBuffer.getCurrentChar() != "*" and not bufferHasSubstring(parseBuffer, "MIDI"):
-        generateParseError(parseBuffer, "* or MIDI (argument definition specifier)",
-                           parseBuffer.getCurrentChar())
+    if parseBuffer.getCurrentChar() != "*" and not bufferHasSubstring(
+        parseBuffer, "MIDI"
+    ):
+        generateParseError(
+            parseBuffer,
+            "* or MIDI (argument definition specifier)",
+            parseBuffer.getCurrentChar(),
+        )
     isPlayedNotesArgumentDefinition = False
     if parseBuffer.getCurrentChar() == "*":
         parseBuffer.skip(1)
@@ -327,16 +342,35 @@ def parseArgumentDefinition(parseBuffer):
         matchPredicates = parseMatchPredicates(parseBuffer)
         parsedMatchPredicates = True
     if parseBuffer.getCurrentChar() != "(":
-        argumentNumberRangeExpectedSpecifier = " or argument number range" if isPlayedNotesArgumentDefinition and (
-            not parsedArgumentNumberRange and not parsedMatchPredicates) else ""
-        matchPredicatesExpectedSpecifier = " or match predicates" if not parsedMatchPredicates else ""
+        argumentNumberRangeExpectedSpecifier = (
+            " or argument number range"
+            if isPlayedNotesArgumentDefinition
+            and (not parsedArgumentNumberRange and not parsedMatchPredicates)
+            else ""
+        )
+        matchPredicatesExpectedSpecifier = (
+            " or match predicates" if not parsedMatchPredicates else ""
+        )
         generateParseError(
-            parseBuffer, f"argument definition body{argumentNumberRangeExpectedSpecifier}{matchPredicatesExpectedSpecifier}", parseBuffer.getCurrentChar())
+            parseBuffer,
+            f"argument definition body{argumentNumberRangeExpectedSpecifier}{matchPredicatesExpectedSpecifier}",
+            parseBuffer.getCurrentChar(),
+        )
     argumentFormat, replaceString, argumentSeperator = parseArgumentDefinitionBody(
-        parseBuffer, PLAYED_NOTE_ARGUMENT_FORMATS if isPlayedNotesArgumentDefinition else MIDI_ARGUMENT_FORMATS, allowArgumentSeperator=isPlayedNotesArgumentDefinition)
+        parseBuffer,
+        PLAYED_NOTE_ARGUMENT_FORMATS
+        if isPlayedNotesArgumentDefinition
+        else MIDI_ARGUMENT_FORMATS,
+        allowArgumentSeperator=isPlayedNotesArgumentDefinition,
+    )
     if isPlayedNotesArgumentDefinition:
         return PlayedNotesArgumentDefinition(
-            argumentFormat, replaceString, argumentSeperator, argumentNumberRange, matchPredicates)
+            argumentFormat,
+            replaceString,
+            argumentSeperator,
+            argumentNumberRange,
+            matchPredicates,
+        )
     return MIDIMessageArgumentDefinition(argumentFormat, replaceString, matchPredicates)
 
 
@@ -365,23 +399,23 @@ def parseArgumentNumberRange(parseBuffer):
     if parseBuffer.getCurrentChar().isdigit():
         upperBound = parsePositiveInteger(parseBuffer)
     if parseBuffer.getCurrentChar() != "]":
-        generateParseError(parseBuffer, "number or ]",
-                           parseBuffer.getCurrentChar())
+        generateParseError(parseBuffer, "number or ]", parseBuffer.getCurrentChar())
     parseBuffer.skip(1)
     return ArgumentNumberRange(lowerBound, upperBound)
 
 
 def parsePositiveInteger(parseBuffer):
     if not parseBuffer.getCurrentChar().isdigit():
-        generateParseError(parseBuffer, "positive number",
-                           parseBuffer.getCurrentChar())
+        generateParseError(parseBuffer, "positive number", parseBuffer.getCurrentChar())
     startPosition = parseBuffer.at()
     while not parseBuffer.atEndOfLine() and parseBuffer.getCurrentChar().isdigit():
         parseBuffer.skip(1)
     return int(parseBuffer.stringFrom(startPosition, parseBuffer.at()))
 
 
-def parseArgumentDefinitionBody(parseBuffer, argumentFormats, allowArgumentSeperator=True):
+def parseArgumentDefinitionBody(
+    parseBuffer, argumentFormats, allowArgumentSeperator=True
+):
     if parseBuffer.getCurrentChar() != "(":
         generateParseError(
             parseBuffer,
@@ -418,7 +452,9 @@ def parseArgumentDefinitionBody(parseBuffer, argumentFormats, allowArgumentSeper
                 else ""
             )
             argumentSeperatorExpectedSpecifier = (
-                " or argument seperator" if allowArgumentSeperator and not parsedArgumentSeperator else ""
+                " or argument seperator"
+                if allowArgumentSeperator and not parsedArgumentSeperator
+                else ""
             )
             otherExpectedSpecifier = f"f-string argument format{replaceStringExpectedSpecifier}{argumentSeperatorExpectedSpecifier}"
             parseBuffer.jump(argumentFormatStringStart)
@@ -495,8 +531,7 @@ def bufferHasSubstring(parseBuffer, substring):
 
 def eatPythonString(parseBuffer):
     if parseBuffer.getCurrentChar() not in "\"'":
-        generateParseError(parseBuffer, "python string",
-                           parseBuffer.getCurrentChar())
+        generateParseError(parseBuffer, "python string", parseBuffer.getCurrentChar())
     quoteChar = parseBuffer.getCurrentChar()
     isDocstring = bufferHasSubstring(parseBuffer, quoteChar * 3)
     parseBuffer.skip(3 if isDocstring else 1)
@@ -533,8 +568,7 @@ def parseFStringArgumentFormat(parseBuffer):
 
 def parseInterpreter(parseBuffer):
     if not parseBuffer.getCurrentChar() == "(":
-        generateParseError(parseBuffer, "interpreter",
-                           parseBuffer.getCurrentChar())
+        generateParseError(parseBuffer, "interpreter", parseBuffer.getCurrentChar())
     parseBuffer.skip(1)
     startPosition = parseBuffer.at()
     parseBuffer.eatWhitespace()
@@ -552,8 +586,7 @@ def parseInterpreter(parseBuffer):
 
 def parseScriptFlags(parseBuffer):
     if not parseBuffer.getCurrentChar() == "[":
-        generateParseError(parseBuffer, "script flags",
-                           parseBuffer.getCurrentChar())
+        generateParseError(parseBuffer, "script flags", parseBuffer.getCurrentChar())
     parseBuffer.skip(1)
     afterSeperator = parseBuffer.at()
     parseBuffer.eatWhitespace()
@@ -567,8 +600,7 @@ def parseScriptFlags(parseBuffer):
         flag = parseBuffer.stringFrom(flagStart, parseBuffer.at())
         if flag not in FLAGS:
             parseBuffer.jump(flagStart)
-            generateParseError(
-                parseBuffer, f"one of {'|'.join(FLAGS.keys())}", flag)
+            generateParseError(parseBuffer, f"one of {'|'.join(FLAGS.keys())}", flag)
         flags |= FLAGS[flag]
         parseBuffer.eatWhitespace()
         if parseBuffer.getCurrentChar() == "]":
@@ -578,8 +610,7 @@ def parseScriptFlags(parseBuffer):
             afterSeperator = parseBuffer.at()
             parseBuffer.eatWhitespace()
         else:
-            generateParseError(parseBuffer, "| or ]",
-                               parseBuffer.getCurrentChar())
+            generateParseError(parseBuffer, "| or ]", parseBuffer.getCurrentChar())
     parseBuffer.skip(1)
     return flags
 

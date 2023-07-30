@@ -26,7 +26,8 @@ class MacroNote:
 
     def __str__(self):
         matchPredicatesSpecifier = "".join(
-            f"{{{matchPredicate}}}" for matchPredicate in self.matchPredicates)
+            f"{{{matchPredicate}}}" for matchPredicate in self.matchPredicates
+        )
         return f"{aspn.midiNoteToASPN(self.note)}{matchPredicatesSpecifier}"
 
     def __eq__(self, other):

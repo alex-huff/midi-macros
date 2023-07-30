@@ -9,8 +9,9 @@ context = local()
 def loggingContext(profile=None, subprofile=None):
     oldProfile = getProfile()
     oldSubprofile = getSubprofile()
-    setContext(profile if profile else oldProfile,
-               subprofile if subprofile else oldSubprofile)
+    setContext(
+        profile if profile else oldProfile, subprofile if subprofile else oldSubprofile
+    )
     try:
         yield None
     finally:
@@ -23,11 +24,11 @@ def setContext(profile=None, subprofile=None):
 
 
 def getProfile():
-    return getattr(context, 'profile', None)
+    return getattr(context, "profile", None)
 
 
 def getSubprofile():
-    return getattr(context, 'subprofile', None)
+    return getattr(context, "subprofile", None)
 
 
 def exceptionStr(exception):
