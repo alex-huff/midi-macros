@@ -4,11 +4,6 @@ import tempfile
 XDG_RUNTIME_DIR = "XDG_RUNTIME_DIR"
 
 
-class MessageFormatException(Exception):
-    def __init__(self, message):
-        self.message = message
-
-
 class IPCIOError(Exception):
     def __init__(self, message):
         self.message = message
@@ -50,7 +45,7 @@ def sendVarInt(ipcSocket, uInt):
     while continuationBit:
         lowSeven = uInt & 0x7F
         uInt >>= 7
-        continuationBit = 0x80 if uInt else 0
+        continuationBit = continuationBit if uInt else 0
         varIntByte = continuationBit | lowSeven
         varIntBytes.append(varIntByte)
     sendall(ipcSocket, varIntBytes)
@@ -76,7 +71,7 @@ def readVarInt(ipcSocket):
     bytesProcessed = 0
     while continuationBit:
         byte = recvall(ipcSocket, 1)[0]
-        continuationBit = byte & 0x80
+        continuationBit = byte & continuationBit
         byte = byte & 0x7F
         varInt |= byte << (7 * bytesProcessed)
         bytesProcessed += 1

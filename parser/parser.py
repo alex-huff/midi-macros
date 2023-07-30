@@ -337,7 +337,8 @@ def parseArgumentDefinition(parseBuffer):
     if parseBuffer.getCurrentChar() == "{":
         matchPredicates = parseMatchPredicates(parseBuffer)
     if parseBuffer.getCurrentChar() == "(":
-        argumentFormat, replaceString, argumentSeperator = parseArgumentProcessor(parseBuffer,
+        argumentFormat, replaceString, argumentSeperator = parseArgumentProcessor(
+            parseBuffer,
             PLAYED_NOTE_ARGUMENT_FORMATS
             if isPlayedNotesArgumentDefinition
             else MIDI_ARGUMENT_FORMATS,
@@ -351,11 +352,17 @@ def parseArgumentDefinition(parseBuffer):
                 replaceString,
                 argumentSeperator,
             )
-        return MIDIMessageArgumentDefinition(matchPredicates, argumentFormat, replaceString)
+        return MIDIMessageArgumentDefinition(
+            matchPredicates, argumentFormat, replaceString
+        )
     else:
         if isPlayedNotesArgumentDefinition:
-            return PlayedNotesArgumentDefinition(argumentNumberRange, matchPredicates, shouldProcessArguments=False)
-        return MIDIMessageArgumentDefinition(matchPredicates, shouldProcessArguments=False)
+            return PlayedNotesArgumentDefinition(
+                argumentNumberRange, matchPredicates, shouldProcessArguments=False
+            )
+        return MIDIMessageArgumentDefinition(
+            matchPredicates, shouldProcessArguments=False
+        )
 
 
 def parseArgumentNumberRange(parseBuffer):
@@ -397,9 +404,7 @@ def parsePositiveInteger(parseBuffer):
     return int(parseBuffer.stringFrom(startPosition, parseBuffer.at()))
 
 
-def parseArgumentProcessor(
-    parseBuffer, argumentFormats, allowArgumentSeperator=True
-):
+def parseArgumentProcessor(parseBuffer, argumentFormats, allowArgumentSeperator=True):
     if parseBuffer.getCurrentChar() != "(":
         generateParseError(
             parseBuffer,

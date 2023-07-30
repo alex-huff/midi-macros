@@ -18,7 +18,6 @@ from parser.parser import (
 from listener.midi_listener import ListenerException, MidiListener
 from ipc.protocol import (
     IPCIOError,
-    MessageFormatException,
     getIPCSocketPath,
     readMessage,
     sendResponse,
@@ -312,7 +311,7 @@ class MidiMacros:
             message = readMessage(ipcSocket)
             response = handleMessage(message, self)
             sendResponse(ipcSocket, response)
-        except (MessageFormatException, IPCIOError) as exception:
+        except IPCIOError as exception:
             logError(exception.message)
         except Exception as exception:
             logError(f"failed to handle client, {exceptionStr(exception)}")

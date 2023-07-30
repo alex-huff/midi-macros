@@ -103,7 +103,7 @@ SINGLE_ARGUMENT_NUMBER_RANGE = ArgumentNumberRange(1, 1)
 class ArgumentDefinition(ABC):
     def __init__(
         self,
-        argumentType,
+        argumentType=object,
         argumentFormat=FORMAT_NONE,
         replaceString=None,
         argumentSeperator=" ",
@@ -213,7 +213,7 @@ class ArgumentDefinition(ABC):
 class ZeroArgumentDefinition(ArgumentDefinition):
     def __init__(self):
         super().__init__(
-            object, argumentNumberRange=ZERO_ARGUMENT_NUMBER_RANGE, shouldProcessArguments=False
+            argumentNumberRange=ZERO_ARGUMENT_NUMBER_RANGE, shouldProcessArguments=False
         )
 
     def getIdentifier(self):
@@ -234,7 +234,7 @@ class PlayedNotesArgumentDefinition(ArgumentDefinition):
         argumentFormat=FORMAT_NONE,
         replaceString=None,
         argumentSeperator=" ",
-        shouldProcessArguments=True
+        shouldProcessArguments=True,
     ):
         super().__init__(
             PlayedNote,
@@ -243,7 +243,7 @@ class PlayedNotesArgumentDefinition(ArgumentDefinition):
             argumentSeperator,
             argumentNumberRange,
             matchPredicates,
-            shouldProcessArguments
+            shouldProcessArguments,
         )
 
     def getIdentifier(self):
@@ -313,14 +313,20 @@ class PlayedNotesArgumentDefinition(ArgumentDefinition):
 
 
 class MIDIMessageArgumentDefinition(ArgumentDefinition):
-    def __init__(self, matchPredicates, argumentFormat=FORMAT_NONE, replaceString=None, shouldProcessArguments=True):
+    def __init__(
+        self,
+        matchPredicates,
+        argumentFormat=FORMAT_NONE,
+        replaceString=None,
+        shouldProcessArguments=True,
+    ):
         super().__init__(
             MIDIMessage,
             argumentFormat,
             replaceString,
             argumentNumberRange=SINGLE_ARGUMENT_NUMBER_RANGE,
             matchPredicates=matchPredicates,
-            shouldProcessArguments=shouldProcessArguments
+            shouldProcessArguments=shouldProcessArguments,
         )
 
     def getIdentifier(self):
