@@ -337,7 +337,7 @@ def parseArgumentDefinition(parseBuffer):
     if parseBuffer.getCurrentChar() == "{":
         matchPredicates = parseMatchPredicates(parseBuffer)
     if parseBuffer.getCurrentChar() == "(":
-        argumentFormat, replaceString, argumentSeperator = parseArgumentDefinitionBody(parseBuffer,
+        argumentFormat, replaceString, argumentSeperator = parseArgumentProcessor(parseBuffer,
             PLAYED_NOTE_ARGUMENT_FORMATS
             if isPlayedNotesArgumentDefinition
             else MIDI_ARGUMENT_FORMATS,
@@ -397,13 +397,13 @@ def parsePositiveInteger(parseBuffer):
     return int(parseBuffer.stringFrom(startPosition, parseBuffer.at()))
 
 
-def parseArgumentDefinitionBody(
+def parseArgumentProcessor(
     parseBuffer, argumentFormats, allowArgumentSeperator=True
 ):
     if parseBuffer.getCurrentChar() != "(":
         generateParseError(
             parseBuffer,
-            "argument definition body",
+            "argument processor",
             parseBuffer.getCurrentChar(),
         )
     parseBuffer.skip(1)

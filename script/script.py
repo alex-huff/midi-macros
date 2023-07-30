@@ -129,6 +129,7 @@ class Script:
     def invokeScript(self, arguments):
         if not self.argumentDefinition.getShouldProcessArguments():
             self.runProcess(self.script)
+            return
         try:
             processedArguments = self.argumentDefinition.processArguments(arguments)
         except Exception:
