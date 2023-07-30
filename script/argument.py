@@ -103,23 +103,28 @@ SINGLE_ARGUMENT_NUMBER_RANGE = ArgumentNumberRange(1, 1)
 class ArgumentDefinition(ABC):
     def __init__(
         self,
-        argumentFormat,
         argumentType,
+        argumentFormat=FORMAT_NONE,
         replaceString=None,
         argumentSeperator=" ",
         argumentNumberRange=UNBOUNDED_ARGUMENT_NUMBER_RANGE,
         matchPredicates=[],
+        shouldProcessArguments=True,
     ):
-        self.argumentFormat = argumentFormat
         self.argumentType = argumentType
+        self.argumentFormat = argumentFormat
         self.replaceString = replaceString
         self.argumentSeperator = argumentSeperator
         self.argumentNumberRange = argumentNumberRange
         self.matchPredicates = matchPredicates
+        self.shouldProcessArguments = shouldProcessArguments
         if isinstance(self.argumentFormat, ArgumentFormat):
             self.argumentProcessor = self.argumentFormat.convert
         else:
             self.argumentProcessor = self.processFStringArgumentFormat
+
+    def getArgumentType(self):
+        return self.argumentType
 
     def getArgumentFormat(self):
         return self.argumentFormat
@@ -136,13 +141,11 @@ class ArgumentDefinition(ABC):
     def getMatchPredicates(self):
         return self.matchPredicates
 
+    def getShouldProcessArguments(self):
+        return self.shouldProcessArguments
+
     def testNumArguments(self, numArguments):
         return self.argumentNumberRange.test(numArguments)
-
-    def acceptsArgs(self):
-        return self.argumentNumberRange.acceptsArgs() and (
-            self.replaceString or self.argumentFormat != FORMAT_NONE
-        )
 
     def argumentsMatch(self, arguments):
         return (
@@ -166,6 +169,8 @@ class ArgumentDefinition(ABC):
             return False
 
     def processArguments(self, arguments):
+        if not self.shouldProcessArguments:
+            raise UnsupportedOperation
         return self.argumentSeperator.join(
             self.argumentProcessor(argument) for argument in arguments
         )
@@ -187,24 +192,28 @@ class ArgumentDefinition(ABC):
         matchPredicatesSpecifier = "".join(
             f"{{{matchPredicate}}}" for matchPredicate in self.matchPredicates
         )
-        replaceStringSpecifier = (
-            f'"{self.replaceString}"→' if self.replaceString else ""
-        )
-        argumentSeperatorSpecifier = (
-            f'["{self.argumentSeperator}"]' if self.argumentSeperator != " " else ""
-        )
-        argumentFormatSpecifier = (
-            self.argumentFormat.getName()
-            if isinstance(self.argumentFormat, ArgumentFormat)
-            else self.argumentFormat
-        )
-        return f"{self.getIdentifier()}{argumentNumRangeSpecifier}{matchPredicatesSpecifier}({replaceStringSpecifier}{argumentSeperatorSpecifier}{argumentFormatSpecifier})"
+        if self.shouldProcessArguments:
+            replaceStringSpecifier = (
+                f'"{self.replaceString}"→' if self.replaceString else ""
+            )
+            argumentSeperatorSpecifier = (
+                f'["{self.argumentSeperator}"]' if self.argumentSeperator != " " else ""
+            )
+            argumentFormatSpecifier = (
+                self.argumentFormat.getName()
+                if isinstance(self.argumentFormat, ArgumentFormat)
+                else self.argumentFormat
+            )
+            argumentDefinitionBodySpecifier = f"({replaceStringSpecifier}{argumentSeperatorSpecifier}{argumentFormatSpecifier})"
+        else:
+            argumentDefinitionBodySpecifier = ""
+        return f"{self.getIdentifier()}{argumentNumRangeSpecifier}{matchPredicatesSpecifier}{argumentDefinitionBodySpecifier}"
 
 
 class ZeroArgumentDefinition(ArgumentDefinition):
     def __init__(self):
         super().__init__(
-            FORMAT_NONE, None, argumentNumberRange=ZERO_ARGUMENT_NUMBER_RANGE
+            object, argumentNumberRange=ZERO_ARGUMENT_NUMBER_RANGE, shouldProcessArguments=False
         )
 
     def getIdentifier(self):
@@ -220,19 +229,21 @@ class ZeroArgumentDefinition(ArgumentDefinition):
 class PlayedNotesArgumentDefinition(ArgumentDefinition):
     def __init__(
         self,
-        argumentFormat,
-        replaceString,
-        argumentSeperator,
         argumentNumberRange,
         matchPredicates,
+        argumentFormat=FORMAT_NONE,
+        replaceString=None,
+        argumentSeperator=" ",
+        shouldProcessArguments=True
     ):
         super().__init__(
-            argumentFormat,
             PlayedNote,
+            argumentFormat,
             replaceString,
             argumentSeperator,
             argumentNumberRange,
             matchPredicates,
+            shouldProcessArguments
         )
 
     def getIdentifier(self):
@@ -302,13 +313,14 @@ class PlayedNotesArgumentDefinition(ArgumentDefinition):
 
 
 class MIDIMessageArgumentDefinition(ArgumentDefinition):
-    def __init__(self, argumentFormat, replaceString, matchPredicates):
+    def __init__(self, matchPredicates, argumentFormat=FORMAT_NONE, replaceString=None, shouldProcessArguments=True):
         super().__init__(
-            argumentFormat,
             MIDIMessage,
+            argumentFormat,
             replaceString,
             argumentNumberRange=SINGLE_ARGUMENT_NUMBER_RANGE,
             matchPredicates=matchPredicates,
+            shouldProcessArguments=shouldProcessArguments
         )
 
     def getIdentifier(self):

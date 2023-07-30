@@ -30,7 +30,7 @@ class Script:
         self.invocationQueue = Queue()
         self.invocationThread = None
         self.argumentsOverSTDIN = (
-            argumentDefinition.acceptsArgs()
+            argumentDefinition.getShouldProcessArguments()
             and not self.argumentDefinition.getReplaceString()
         )
         self.scriptPathAsEnvVar = (self.flags & SCRIPT_PATH_AS_ENV_VAR) or (
@@ -127,12 +127,10 @@ class Script:
             logError(f"failed to run script, {exceptionStr(exception)}")
 
     def invokeScript(self, arguments):
+        if not self.argumentDefinition.getShouldProcessArguments():
+            self.runProcess(self.script)
         try:
-            processedArguments = (
-                self.argumentDefinition.processArguments(arguments)
-                if self.argumentDefinition.acceptsArgs()
-                else None
-            )
+            processedArguments = self.argumentDefinition.processArguments(arguments)
         except Exception:
             logError(
                 f"failed to process arguments with argument format: {self.argumentDefinition.getArgumentFormat()}"
@@ -141,10 +139,8 @@ class Script:
         replaceString = self.argumentDefinition.getReplaceString()
         if replaceString:
             self.runProcess(self.script.replace(replaceString, processedArguments))
-        elif self.argumentsOverSTDIN:
-            self.runProcess(self.script, processedArguments)
         else:
-            self.runProcess(self.script)
+            self.runProcess(self.script, processedArguments)
 
     def queueIfArgumentsMatch(self, arguments):
         if not self.argumentDefinition.argumentsMatch(arguments):
