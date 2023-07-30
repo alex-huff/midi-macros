@@ -163,6 +163,6 @@ class Script:
             if self.flags
             else ""
         )
-        indentedScript = "\n".join("\t" + line for line in self.script.splitlines())
+        indentedScript = "\n".join(f"\t{line}" for line in self.script.splitlines())
         scriptSpecification = f"{{\n{indentedScript}\n}}"
         return f"{argumentDefinitionSpecification}{interpreterSpecification}{flagsSpecification}→\n{scriptSpecification}"
