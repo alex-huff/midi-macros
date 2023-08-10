@@ -24,7 +24,7 @@ C4+E4+G4 → xterm
 (C4+E4+G4){c==0} → xterm
 ```
 
-Control cmus music music player
+Control cmus music player
 ```
 # cmus control with pads on MPK mini (pads are on channel 9, MIDI value 40-43 is the same as E2-G2)
 40{c==9} → cmus-remote --pause
