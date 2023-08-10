@@ -7,6 +7,9 @@ To somebody comfortable with scripting, midi-macros is far more flexible than ha
 Open xterm when middle C is pressed:
 ```
 C4 → xterm
+
+# same as above but channel must be 0
+C4{c==0} → xterm
 ```
 
 Open xterm when a middle C major chord is played:
@@ -17,9 +20,15 @@ Open xterm when a middle C major chord is played:
 # for this macro, order matters
 C4+E4+G4 → xterm
 
-# for this macro, order matters and all the notes must be played on channel 0
-C4{c==0}+E4{c==0}+G4{c==0} → xterm
-
-# this is equivalent to the macro above
+# same as above but all notes must be played on channel 0
 (C4+E4+G4){c==0} → xterm
+```
+
+Control cmus music music player
+```
+# cmus control with pads on MPK mini (pads are on channel 9, MIDI value 40-43 is the same as E2-G2)
+40{c==9} → cmus-remote --pause
+41{c==9} → cmus-remote --prev
+42{c==9} → cmus-remote --next
+43{c==9} → cmus-remote -C "toggle repeat_current"
 ```
