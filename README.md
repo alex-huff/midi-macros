@@ -8,3 +8,15 @@ Open xterm when middle C is pressed:
 ```
 C4 → xterm
 ```
+
+Open xterm when a middle C major chord is played:
+```
+# for this macro, the order in which you play C4, E4, G4 does not matter
+[C4|E4|G4] → xterm
+
+# for this macro, order matters
+C4+E4+G4 → xterm
+
+# for this macro, order matters and all the notes must be played on channel 0
+(C4+E4+G4){c==0} → xterm
+```
