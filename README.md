@@ -63,21 +63,8 @@ C4 *[1:4]("{}"→[-]MIDI) → echo {}
 
 # instead of using a predefined argument format like ASPN or MIDI, you can use a python f-string format
 
-# this macro for 1 or more extra notes after C4:
+# this macro, for 1 or more extra notes after C4:
 # outputs the MIDI value, the ASPN, the piano key number, the velocity, and the time the note was pressed in seconds since epoch
 # seperates each argument with a newline
 C4 *[1:]("{}"→["\n"]f"MIDI: {m}, ASPN: {a}, PIANO: {p}, VELOCITY: {v}, TIME: {sec(playedNote.getTime())}") → echo "{}"
-```
-
-### Real world
-
-Control cmus music player
-```
-# cmus control with pads on MPK mini
-# on the MPK mini, pads are on channel 9 and MIDI values 40-43 map to the first 4 pads in bank A
-# 40-43 is used instead of E2-G2, but either would work
-40{c==9} → cmus-remote --pause
-41{c==9} → cmus-remote --prev
-42{c==9} → cmus-remote --next
-43{c==9} → cmus-remote -C "toggle repeat_current"
 ```
