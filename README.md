@@ -37,7 +37,9 @@ You can also chain together notes and chords, and specify velocity requirements
 
 Control cmus music player
 ```
-# cmus control with pads on MPK mini (pads are on channel 9, MIDI value 40-43 is the same as E2-G2)
+# cmus control with pads on MPK mini
+# on the MPK mini, pads are on channel 9
+# MIDI value 40-43 are used instead of E2-G2, but either would work
 40{c==9} → cmus-remote --pause
 41{c==9} → cmus-remote --prev
 42{c==9} → cmus-remote --next
