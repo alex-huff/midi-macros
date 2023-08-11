@@ -32,8 +32,7 @@ You can also chain together notes and chords, and specify velocity requirements
 # B3 must be on channel 6
 # D5 must come after A3, B3, C3, and must have a velocity >=64
 # C6 must come after D5 and be on channel 7
-[A3|B3{c==6}|C3]+
-D5{v>=64}+C6{c==7} → xterm
+[A3|B3{c==6}|C3]+D5{v>=64}+C6{c==7} → xterm
 ```
 
 Control cmus music player
