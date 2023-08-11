@@ -47,12 +47,13 @@ C4 *(ASPN) → cat
 # it will only be executed if there are 1-4 extra notes played
 # arguments are not passed over STDIN, they replace the substring `{}` in the script
 # MIDI values are used instead of ASPN
-# `-` is used to seperate arguments
+# `-` is used to seperate arguments instead of a space
 C4 *[1:4]("{}"→[-]MIDI) → echo {}
 
+# instead of using a predefined argument format like ASPN or MIDI, you can use a python f-string format
 # for 1 or more extra notes after C4:
-# output the MIDI value, the ASPN, the piano key number, the velocity, and the time the note was pressed since epoch
-# seperate each note with newline
+# output the MIDI value, the ASPN, the piano key number, the velocity, and the time the note was pressed in seconds since epoch
+# seperate each argument with a newline
 C4 *[1:]("{}"→["\n"]f"MIDI: {m}, ASPN: {a}, PIANO: {p}, VELOCITY: {v}, TIME: {sec(playedNote.getTime())}") → echo "{}"
 ```
 
