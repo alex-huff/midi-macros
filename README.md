@@ -38,7 +38,7 @@ You can also chain together notes and chords, and specify velocity requirements
 
 Using arguments
 ```
-# here, the MIDI values of any extra notes played after C4 are passed into the script through STDIN
+# here, the ASPN of any extra notes played after C4 are passed into the script through STDIN
 # for example, playing C4+D4+E4 would output `D4 E4` since cat reads STDIN and dumps it to STDOUT
 # ASPN is American Standard Pitch Notation (example: C4, F♯5)
 C4 *(ASPN) → cat
