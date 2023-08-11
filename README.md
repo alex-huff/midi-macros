@@ -19,7 +19,8 @@ C4+E4+G4 → xterm
 # same as above but all notes must be played on channel 0
 (C4+E4+G4){c==0} → xterm
 
-# for this macro, the order in which you play C4, E4, G4 does not matter
+# you can specify chords by surrounding a set of notes in brackets, seperating them with |
+# this allows you to play C4, E4, G4 in any order
 [C4|E4|G4] → xterm
 
 # same as above but all notes must be played on channel 0
@@ -34,6 +35,28 @@ You can also chain together notes and chords, and specify velocity requirements
 # C6 must come after D5 and be on channel 7
 [A3|B3{c==6}|C3]+D5{v>=64}+C6{c==7} → xterm
 ```
+
+Using arguments
+```
+# here, the MIDI values of any extra notes played after C4 are passed into the script through STDIN
+# for example, playing C4+D4+E4 would output `D4 E4` since cat reads STDIN and dumps it to STDOUT
+# ASPN is American Standard Pitch Notation (example: C4, F♯5)
+C4 *(ASPN) → cat
+
+# this macro does the same thing as the one above, but:
+# it will only be executed if there are 1-4 extra notes played
+# arguments are not passed over STDIN, they replace the substring `{}` in the script
+# MIDI values are used instead of ASPN
+# `-` is used to seperate arguments
+C4 *[1:4]("{}"→[-]MIDI) → echo {}
+
+# for 1 or more extra notes after C4:
+# output the MIDI value, the ASPN, the piano key number, the velocity, and the time the note was pressed since epoch
+# seperate each note with newline
+C4 *[1:]("{}"→["\n"]f"MIDI: {m}, ASPN: {a}, PIANO: {p}, VELOCITY: {v}, TIME: {sec(playedNote.getTime())}") → echo "{}"
+```
+
+### Real world
 
 Control cmus music player
 ```

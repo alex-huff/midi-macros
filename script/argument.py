@@ -306,7 +306,10 @@ class PlayedNotesArgumentDefinition(ArgumentDefinition):
         t = TIME
         c = CHANNEL
         n = NONE
-        formattedString = eval(self.argumentFormat)
+        try:
+            formattedString = eval(self.argumentFormat)
+        except Exception as e:
+            print(e)
         if not isinstance(formattedString, str):
             raise ValueError
         return formattedString
