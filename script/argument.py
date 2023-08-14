@@ -372,6 +372,7 @@ class MIDIMessageArgumentDefinition(ArgumentDefinition):
         NONE = FORMAT_NONE.convert(message)
         CC_VALUE = DATA_2
         CC_FUNCTION = DATA_1
+        CC_VALUE_SCALED = lambda minValue, maxValue: minValue + (maxValue - minValue) * (CC_VALUE / 127)
         m = MESSAGE
         mbs = MESSAGE_BYTES
         mbsh = MESSAGE_BYTES_HEX
