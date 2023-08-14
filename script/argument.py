@@ -373,6 +373,8 @@ class MIDIMessageArgumentDefinition(ArgumentDefinition):
         CC_VALUE_PERCENT = MIDI_MESSAGE_FORMAT_CC_VALUE_PERCENT.convert(message)
         CC_VALUE_BOOL = MIDI_MESSAGE_FORMAT_CC_VALUE_BOOL.convert(message)
         NONE = FORMAT_NONE.convert(message)
+        CC_VALUE = DATA_2
+        CC_FUNCTION = DATA_1
         m = MESSAGE
         mbs = MESSAGE_BYTES
         mbsh = MESSAGE_BYTES_HEX
@@ -388,6 +390,8 @@ class MIDIMessageArgumentDefinition(ArgumentDefinition):
         d2h = DATA_2_HEX
         ccvp = CC_VALUE_PERCENT
         ccvb = CC_VALUE_BOOL
+        ccv = CC_VALUE
+        ccf = CC_FUNCTION
         n = NONE
         formattedString = eval(self.argumentFormat)
         if not isinstance(formattedString, str):
