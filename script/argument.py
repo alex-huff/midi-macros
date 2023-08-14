@@ -25,19 +25,19 @@ class ArgumentFormat:
         return self.getName()
 
 
-PLAYED_NOTE_FORMAT_MIDI = ArgumentFormat(lambda pn: str(pn.getNote()), "MIDI")
+PLAYED_NOTE_FORMAT_MIDI = ArgumentFormat(lambda pn: pn.getNote(), "MIDI")
 PLAYED_NOTE_FORMAT_ASPN = ArgumentFormat(
     lambda pn: midiNoteToASPN(pn.getNote(), False), "ASPN"
 )
 PLAYED_NOTE_FORMAT_ASPN_UNICODE = ArgumentFormat(
     lambda pn: midiNoteToASPN(pn.getNote()), "ASPN_UNICODE"
 )
-PLAYED_NOTE_FORMAT_PIANO = ArgumentFormat(lambda pn: str(pn.getNote() - 20), "PIANO")
+PLAYED_NOTE_FORMAT_PIANO = ArgumentFormat(lambda pn: pn.getNote() - 20, "PIANO")
 PLAYED_NOTE_FORMAT_VELOCITY = ArgumentFormat(
-    lambda pn: str(pn.getVelocity()), "VELOCITY"
+    lambda pn: pn.getVelocity(), "VELOCITY"
 )
-PLAYED_NOTE_FORMAT_TIME = ArgumentFormat(lambda pn: str(pn.getTime()), "TIME")
-PLAYED_NOTE_FORMAT_CHANNEL = ArgumentFormat(lambda pn: str(pn.getChannel()), "CHANNEL")
+PLAYED_NOTE_FORMAT_TIME = ArgumentFormat(lambda pn: pn.getTime(), "TIME")
+PLAYED_NOTE_FORMAT_CHANNEL = ArgumentFormat(lambda pn: pn.getChannel(), "CHANNEL")
 
 MIDI_MESSAGE_FORMAT_MESSAGE_BYTES = ArgumentFormat(
     lambda m: "-".join(str(d) for d in m.getMessage()), "MESSAGE_BYTES"
@@ -45,11 +45,11 @@ MIDI_MESSAGE_FORMAT_MESSAGE_BYTES = ArgumentFormat(
 MIDI_MESSAGE_FORMAT_MESSAGE_BYTES_HEX = ArgumentFormat(
     lambda m: "-".join(hex(d) for d in m.getMessage()), "MESSAGE_BYTES_HEX"
 )
-MIDI_MESSAGE_FORMAT_STATUS = ArgumentFormat(lambda m: str(m.getStatus()), "STATUS")
-MIDI_MESSAGE_FORMAT_CHANNEL = ArgumentFormat(lambda m: str(m.getChannel()), "CHANNEL")
-MIDI_MESSAGE_FORMAT_DATA_0 = ArgumentFormat(lambda m: str(m.getData0()), "DATA_0")
-MIDI_MESSAGE_FORMAT_DATA_1 = ArgumentFormat(lambda m: str(m.getData1()), "DATA_1")
-MIDI_MESSAGE_FORMAT_DATA_2 = ArgumentFormat(lambda m: str(m.getData2()), "DATA_2")
+MIDI_MESSAGE_FORMAT_STATUS = ArgumentFormat(lambda m: m.getStatus(), "STATUS")
+MIDI_MESSAGE_FORMAT_CHANNEL = ArgumentFormat(lambda m: m.getChannel(), "CHANNEL")
+MIDI_MESSAGE_FORMAT_DATA_0 = ArgumentFormat(lambda m: m.getData0(), "DATA_0")
+MIDI_MESSAGE_FORMAT_DATA_1 = ArgumentFormat(lambda m: m.getData1(), "DATA_1")
+MIDI_MESSAGE_FORMAT_DATA_2 = ArgumentFormat(lambda m: m.getData2(), "DATA_2")
 MIDI_MESSAGE_FORMAT_STATUS_HEX = ArgumentFormat(
     lambda m: hex(m.getStatus()), "STATUS_HEX"
 )
@@ -66,11 +66,11 @@ MIDI_MESSAGE_FORMAT_DATA_2_HEX = ArgumentFormat(
     lambda m: hex(m.getData2()), "DATA_2_HEX"
 )
 MIDI_MESSAGE_FORMAT_CC_VALUE_PERCENT = ArgumentFormat(
-    lambda m: str(round(100 * m.getData2() / 127)) if m.getData2() != None else "None",
+    lambda m: round(100 * m.getData2() / 127) if m.getData2() != None else None,
     "CC_VALUE_PERCENT",
 )
 MIDI_MESSAGE_FORMAT_CC_VALUE_BOOL = ArgumentFormat(
-    lambda m: str(m.getData2() >= 64) if m.getData2() != None else "None",
+    lambda m: m.getData2() >= 64 if m.getData2() != None else None,
     "CC_VALUE_BOOL",
 )
 
@@ -119,7 +119,7 @@ class ArgumentDefinition(ABC):
         self.matchPredicates = matchPredicates
         self.shouldProcessArguments = shouldProcessArguments
         if isinstance(self.argumentFormat, ArgumentFormat):
-            self.argumentProcessor = self.argumentFormat.convert
+            self.argumentProcessor = lambda a: str(self.argumentFormat.convert(a))
         else:
             self.argumentProcessor = self.processFStringArgumentFormat
 
@@ -306,10 +306,7 @@ class PlayedNotesArgumentDefinition(ArgumentDefinition):
         t = TIME
         c = CHANNEL
         n = NONE
-        try:
-            formattedString = eval(self.argumentFormat)
-        except Exception as e:
-            print(e)
+        formattedString = eval(self.argumentFormat)
         if not isinstance(formattedString, str):
             raise ValueError
         return formattedString
