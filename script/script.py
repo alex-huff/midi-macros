@@ -5,6 +5,7 @@ from threading import Thread
 from queue import Queue, Empty
 from script.argument import *
 from log.mm_logging import loggingContext, logError, exceptionStr
+from locking.locking import lockContext
 
 NONE = 0
 BLOCK = 2**0
@@ -15,20 +16,26 @@ FLAGS = {
     "DEBOUNCE": DEBOUNCE,
     "SCRIPT_PATH_AS_ENV_VAR": SCRIPT_PATH_AS_ENV_VAR,
 }
+LOCK_KEY = "LOCK"
+KEY_VALUE_FLAGS = {
+    LOCK_KEY: None
+}
 
 
 class Script:
     def __init__(
-        self, script, argumentDefinition, flags, interpreter, profile, subprofile=None
+        self, script, argumentDefinition, flags, keyValueFlags, interpreter, profile, subprofile=None
     ):
         self.script = script
         self.argumentDefinition = argumentDefinition
         self.flags = flags
+        self.keyValueFlags = keyValueFlags
         self.interpreter = interpreter
         self.profile = profile
         self.subprofile = subprofile
         self.invocationQueue = Queue()
         self.invocationThread = None
+        self.locks = self.keyValueFlags[LOCK_KEY].split(',') if LOCK_KEY in self.keyValueFlags else []
         self.argumentsOverSTDIN = (
             argumentDefinition.getShouldProcessArguments()
             and not self.argumentDefinition.getReplaceString()
@@ -53,8 +60,14 @@ class Script:
     def getFlags(self):
         return self.flags
 
+    def getKeyValueFlags(self):
+        return self.keyValueFlags
+
     def getInterpreter(self):
         return self.interpreter
+
+    def getLocks(self):
+        return self.locks
 
     def invokeForever(self):
         with loggingContext(self.profile, self.subprofile):
@@ -97,41 +110,44 @@ class Script:
         self.invocationThread = None
 
     def runProcess(self, processedScript, processedInput=None):
-        try:
-            env = None
-            if self.scriptPathAsEnvVar:
-                env = os.environ.copy()
-                scriptFile = tempfile.NamedTemporaryFile(mode="w", delete=False)
-                scriptFile.write(processedScript)
-                scriptFile.close()
-                env["MM_SCRIPT"] = scriptFile.name
-            process = subprocess.Popen(
-                self.interpreter if self.interpreter else processedScript,
-                stdin=subprocess.PIPE
-                if self.scriptOverSTDIN or self.argumentsOverSTDIN
-                else None,
-                text=True,
-                shell=True,
-                start_new_session=True,
-                env=env,
-            )
-            if process.stdin:
-                if self.scriptOverSTDIN:
-                    process.stdin.write(processedScript)
-                elif self.argumentsOverSTDIN and processedInput:
-                    process.stdin.write(processedInput)
-                process.stdin.close()
-            if self.flags & BLOCK:
-                process.wait()
-        except Exception as exception:
-            logError(f"failed to run script, {exceptionStr(exception)}")
+        with lockContext(self.locks):
+            try:
+                env = None
+                if self.scriptPathAsEnvVar:
+                    env = os.environ.copy()
+                    scriptFile = tempfile.NamedTemporaryFile(
+                        mode="w", delete=False)
+                    scriptFile.write(processedScript)
+                    scriptFile.close()
+                    env["MM_SCRIPT"] = scriptFile.name
+                process = subprocess.Popen(
+                    self.interpreter if self.interpreter else processedScript,
+                    stdin=subprocess.PIPE
+                    if self.scriptOverSTDIN or self.argumentsOverSTDIN
+                    else None,
+                    text=True,
+                    shell=True,
+                    start_new_session=True,
+                    env=env,
+                )
+                if process.stdin:
+                    if self.scriptOverSTDIN:
+                        process.stdin.write(processedScript)
+                    elif self.argumentsOverSTDIN and processedInput:
+                        process.stdin.write(processedInput)
+                    process.stdin.close()
+                if self.flags & BLOCK:
+                    process.wait()
+            except Exception as exception:
+                logError(f"failed to run script, {exceptionStr(exception)}")
 
     def invokeScript(self, arguments):
         if not self.argumentDefinition.getShouldProcessArguments():
             self.runProcess(self.script)
             return
         try:
-            processedArguments = self.argumentDefinition.processArguments(arguments)
+            processedArguments = self.argumentDefinition.processArguments(
+                arguments)
         except Exception:
             logError(
                 f"failed to process arguments with argument format: {self.argumentDefinition.getArgumentFormat()}"
@@ -139,7 +155,8 @@ class Script:
             return
         replaceString = self.argumentDefinition.getReplaceString()
         if replaceString:
-            self.runProcess(self.script.replace(replaceString, processedArguments))
+            self.runProcess(self.script.replace(
+                replaceString, processedArguments))
         else:
             self.runProcess(self.script, processedArguments)
 
@@ -160,6 +177,7 @@ class Script:
             if self.flags
             else ""
         )
-        indentedScript = "\n".join(f"\t{line}" for line in self.script.splitlines())
+        indentedScript = "\n".join(
+            f"\t{line}" for line in self.script.splitlines())
         scriptSpecification = f"{{\n{indentedScript}\n}}"
         return f"{argumentDefinitionSpecification}{interpreterSpecification}{flagsSpecification}→\n{scriptSpecification}"

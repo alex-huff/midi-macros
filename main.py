@@ -36,6 +36,7 @@ from config.mm_config import (
     ConfigException,
 )
 from log.mm_logging import loggingContext, logInfo, logError, exceptionStr
+from locking.locking import clearLocks
 
 
 def verifyDirectoryExists(path, name):
@@ -121,6 +122,7 @@ class MidiMacros:
         self.stopListeners()
         logInfo("waiting for callbacks to complete")
         self.callbackQueue.join()
+        clearLocks()
 
     def reload(self):
         logInfo("shutting down profiles")

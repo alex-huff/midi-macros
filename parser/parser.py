@@ -97,10 +97,11 @@ def parseMacro(parseBuffer, profile, subprofile=None):
     if parseBuffer.getCurrentChar() == "(":
         interpreter = parseInterpreter(parseBuffer)
         parsedInterpreter = True
-    scriptFlags = NONE
+    flags = NONE
+    keyValueFlags = {}
     parsedScriptFlags = False
     if parseBuffer.getCurrentChar() == "[":
-        scriptFlags = parseScriptFlags(parseBuffer)
+        flags, keyValueFlags = parseScriptFlags(parseBuffer)
         parsedScriptFlags = True
     if parseBuffer.getCurrentChar() not in ARROW_START_CHARS:
         parsedAnything = any(
@@ -127,7 +128,8 @@ def parseMacro(parseBuffer, profile, subprofile=None):
     script = Script(
         parseScript(parseBuffer),
         argumentDefinition,
-        scriptFlags,
+        flags,
+        keyValueFlags,
         interpreter,
         profile,
         subprofile,
@@ -580,18 +582,35 @@ def parseScriptFlags(parseBuffer):
     afterSeperator = parseBuffer.at()
     parseBuffer.eatWhitespace()
     flags = NONE
+    keyValueFlags = {}
     while True:
-        if parseBuffer.getCurrentChar() in "|]":
+        if parseBuffer.getCurrentChar() in "|]=":
             parseBuffer.jump(afterSeperator)
             generateParseError(parseBuffer, None, "empty script flag")
         flagStart = parseBuffer.at()
-        parseBuffer.skipTillChar("|]", terminateOnWhitespace=True)
+        parseBuffer.skipTillChar("|]=", terminateOnWhitespace=True)
         flag = parseBuffer.stringFrom(flagStart, parseBuffer.at())
-        if flag not in FLAGS:
-            parseBuffer.jump(flagStart)
-            generateParseError(parseBuffer, f"one of {'|'.join(FLAGS.keys())}", flag)
-        flags |= FLAGS[flag]
         parseBuffer.eatWhitespace()
+        parsedKeyValue = False
+        isKeyValueFlag = parseBuffer.getCurrentChar() == "="
+        flagSet = KEY_VALUE_FLAGS if isKeyValueFlag else FLAGS
+        if flag not in flagSet:
+            parseBuffer.jump(flagStart)
+            generateParseError(parseBuffer, f"one of {'|'.join(flagSet.keys())}", flag)
+        if isKeyValueFlag:
+            parseBuffer.skip(1)
+            parseBuffer.eatWhitespace()
+            if parseBuffer.getCurrentChar() == '"':
+                value = parseQuotedString(parseBuffer)
+            else:
+                valueStart = parseBuffer.at()
+                parseBuffer.skipTillChar("|]", terminateOnWhitespace=True)
+                value = parseBuffer.stringFrom(valueStart, parseBuffer.at())
+            keyValueFlags[flag] = value
+            parseBuffer.eatWhitespace()
+            parsedKeyValue = True
+        else:
+            flags |= FLAGS[flag]
         if parseBuffer.getCurrentChar() == "]":
             break
         elif parseBuffer.getCurrentChar() == "|":
@@ -599,9 +618,10 @@ def parseScriptFlags(parseBuffer):
             afterSeperator = parseBuffer.at()
             parseBuffer.eatWhitespace()
         else:
-            generateParseError(parseBuffer, "| or ]", parseBuffer.getCurrentChar())
+            equalsExpectedSpecifier = " or =" if not parsedKeyValue else ""
+            generateParseError(parseBuffer, f"| or ]{equalsExpectedSpecifier}", parseBuffer.getCurrentChar())
     parseBuffer.skip(1)
-    return flags
+    return flags, keyValueFlags
 
 
 def parseMultilineScript(parseBuffer):
