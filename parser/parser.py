@@ -619,7 +619,11 @@ def parseScriptFlags(parseBuffer):
             parseBuffer.eatWhitespace()
         else:
             equalsExpectedSpecifier = " or =" if not parsedKeyValue else ""
-            generateParseError(parseBuffer, f"| or ]{equalsExpectedSpecifier}", parseBuffer.getCurrentChar())
+            generateParseError(
+                parseBuffer,
+                f"| or ]{equalsExpectedSpecifier}",
+                parseBuffer.getCurrentChar(),
+            )
     parseBuffer.skip(1)
     return flags, keyValueFlags
 

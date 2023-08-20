@@ -33,9 +33,7 @@ PLAYED_NOTE_FORMAT_ASPN_UNICODE = ArgumentFormat(
     lambda pn: midiNoteToASPN(pn.getNote()), "ASPN_UNICODE"
 )
 PLAYED_NOTE_FORMAT_PIANO = ArgumentFormat(lambda pn: pn.getNote() - 20, "PIANO")
-PLAYED_NOTE_FORMAT_VELOCITY = ArgumentFormat(
-    lambda pn: pn.getVelocity(), "VELOCITY"
-)
+PLAYED_NOTE_FORMAT_VELOCITY = ArgumentFormat(lambda pn: pn.getVelocity(), "VELOCITY")
 PLAYED_NOTE_FORMAT_TIME = ArgumentFormat(lambda pn: pn.getTime(), "TIME")
 PLAYED_NOTE_FORMAT_CHANNEL = ArgumentFormat(lambda pn: pn.getChannel(), "CHANNEL")
 
@@ -372,7 +370,9 @@ class MIDIMessageArgumentDefinition(ArgumentDefinition):
         NONE = FORMAT_NONE.convert(message)
         CC_VALUE = DATA_2
         CC_FUNCTION = DATA_1
-        CC_VALUE_SCALED = lambda minValue, maxValue: minValue + (maxValue - minValue) * (CC_VALUE / 127)
+        CC_VALUE_SCALED = lambda minValue, maxValue: minValue + (
+            maxValue - minValue
+        ) * (CC_VALUE / 127)
         m = MESSAGE
         mbs = MESSAGE_BYTES
         mbsh = MESSAGE_BYTES_HEX

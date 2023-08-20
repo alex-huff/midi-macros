@@ -17,14 +17,19 @@ FLAGS = {
     "SCRIPT_PATH_AS_ENV_VAR": SCRIPT_PATH_AS_ENV_VAR,
 }
 LOCK_KEY = "LOCK"
-KEY_VALUE_FLAGS = {
-    LOCK_KEY: None
-}
+KEY_VALUE_FLAGS = {(LOCK_KEY)}
 
 
 class Script:
     def __init__(
-        self, script, argumentDefinition, flags, keyValueFlags, interpreter, profile, subprofile=None
+        self,
+        script,
+        argumentDefinition,
+        flags,
+        keyValueFlags,
+        interpreter,
+        profile,
+        subprofile=None,
     ):
         self.script = script
         self.argumentDefinition = argumentDefinition
@@ -35,7 +40,11 @@ class Script:
         self.subprofile = subprofile
         self.invocationQueue = Queue()
         self.invocationThread = None
-        self.locks = self.keyValueFlags[LOCK_KEY].split(',') if LOCK_KEY in self.keyValueFlags else []
+        self.locks = (
+            self.keyValueFlags[LOCK_KEY].split(",")
+            if LOCK_KEY in self.keyValueFlags
+            else []
+        )
         self.argumentsOverSTDIN = (
             argumentDefinition.getShouldProcessArguments()
             and not self.argumentDefinition.getReplaceString()
@@ -115,8 +124,7 @@ class Script:
                 env = None
                 if self.scriptPathAsEnvVar:
                     env = os.environ.copy()
-                    scriptFile = tempfile.NamedTemporaryFile(
-                        mode="w", delete=False)
+                    scriptFile = tempfile.NamedTemporaryFile(mode="w", delete=False)
                     scriptFile.write(processedScript)
                     scriptFile.close()
                     env["MM_SCRIPT"] = scriptFile.name
@@ -146,8 +154,7 @@ class Script:
             self.runProcess(self.script)
             return
         try:
-            processedArguments = self.argumentDefinition.processArguments(
-                arguments)
+            processedArguments = self.argumentDefinition.processArguments(arguments)
         except Exception:
             logError(
                 f"failed to process arguments with argument format: {self.argumentDefinition.getArgumentFormat()}"
@@ -155,8 +162,7 @@ class Script:
             return
         replaceString = self.argumentDefinition.getReplaceString()
         if replaceString:
-            self.runProcess(self.script.replace(
-                replaceString, processedArguments))
+            self.runProcess(self.script.replace(replaceString, processedArguments))
         else:
             self.runProcess(self.script, processedArguments)
 
@@ -177,7 +183,6 @@ class Script:
             if self.flags
             else ""
         )
-        indentedScript = "\n".join(
-            f"\t{line}" for line in self.script.splitlines())
+        indentedScript = "\n".join(f"\t{line}" for line in self.script.splitlines())
         scriptSpecification = f"{{\n{indentedScript}\n}}"
         return f"{argumentDefinitionSpecification}{interpreterSpecification}{flagsSpecification}→\n{scriptSpecification}"

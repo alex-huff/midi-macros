@@ -4,6 +4,7 @@ from contextlib import contextmanager
 lockLock = Lock()
 locks = {}
 
+
 @contextmanager
 def lockContext(lockNames):
     for lockName in lockNames:
@@ -22,6 +23,7 @@ def getLock(lockName):
             lock = RLock()
             locks[lockName] = lock
         return lock
+
 
 def clearLocks():
     with lockLock:
