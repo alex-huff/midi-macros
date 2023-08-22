@@ -63,6 +63,7 @@ MIDI_MESSAGE_FORMAT_DATA_1_HEX = ArgumentFormat(
 MIDI_MESSAGE_FORMAT_DATA_2_HEX = ArgumentFormat(
     lambda m: hex(m.getData2()), "DATA_2_HEX"
 )
+MIDI_MESSAGE_FORMAT_CC_VALUE = MIDI_MESSAGE_FORMAT_DATA_2
 MIDI_MESSAGE_FORMAT_CC_VALUE_PERCENT = ArgumentFormat(
     lambda m: round(100 * m.getData2() / 127) if m.getData2() != None else None,
     "CC_VALUE_PERCENT",
@@ -365,10 +366,10 @@ class MIDIMessageArgumentDefinition(ArgumentDefinition):
         DATA_0_HEX = MIDI_MESSAGE_FORMAT_DATA_0_HEX.convert(message)
         DATA_1_HEX = MIDI_MESSAGE_FORMAT_DATA_1_HEX.convert(message)
         DATA_2_HEX = MIDI_MESSAGE_FORMAT_DATA_2_HEX.convert(message)
+        CC_VALUE = MIDI_MESSAGE_FORMAT_CC_VALUE.convert(message)
         CC_VALUE_PERCENT = MIDI_MESSAGE_FORMAT_CC_VALUE_PERCENT.convert(message)
         CC_VALUE_BOOL = MIDI_MESSAGE_FORMAT_CC_VALUE_BOOL.convert(message)
         NONE = FORMAT_NONE.convert(message)
-        CC_VALUE = DATA_2
         CC_FUNCTION = DATA_1
         CC_VALUE_SCALED = lambda minValue, maxValue: minValue + (
             maxValue - minValue
