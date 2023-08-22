@@ -8,6 +8,7 @@ from listener.played_note import PlayedNote
 from midi.midi_message import MIDIMessage
 from midi.constants import *
 from util.time_util import *
+from util.math_util import *
 
 
 class ArgumentFormat:
@@ -371,9 +372,13 @@ class MIDIMessageArgumentDefinition(ArgumentDefinition):
         CC_VALUE_BOOL = MIDI_MESSAGE_FORMAT_CC_VALUE_BOOL.convert(message)
         NONE = FORMAT_NONE.convert(message)
         CC_FUNCTION = DATA_1
-        CC_VALUE_SCALED = lambda minValue, maxValue: minValue + (
-            maxValue - minValue
-        ) * (CC_VALUE / 127)
+        DATA_1_SCALED = lambda minValue, maxValue: lerp(
+            (DATA_1 / 127), minValue, maxValue
+        )
+        DATA_2_SCALED = lambda minValue, maxValue: lerp(
+            (DATA_2 / 127), minValue, maxValue
+        )
+        CC_VALUE_SCALED = DATA_2_SCALED
         m = MESSAGE
         mbs = MESSAGE_BYTES
         mbsh = MESSAGE_BYTES_HEX
