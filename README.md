@@ -74,6 +74,13 @@ Controlling cmus
 41{c==9} → cmus-remote --prev
 42{c==9} → cmus-remote --next
 43{c==9} → cmus-remote -C "toggle repeat_current"
+
+# seek current song with knob
+C3 MIDI{STATUS==cc}{CC_FUNCTION==72}("{}"→CC_VALUE) [BLOCK|DEBOUNCE]→
+{
+	current_song_duration=$(cmus-remote -Q | grep duration | cut -d " " -f 2)
+	cmus-remote --seek $(python -c "print(round(({} / 127) * $current_song_duration))")
+}
 ```
 
 Controlling the brightness of a smart light with HomeAssistant
