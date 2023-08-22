@@ -83,6 +83,32 @@ C3 MIDI{STATUS==cc}{CC_FUNCTION==72}("{}"→CC_VALUE) [BLOCK|DEBOUNCE]→
 }
 ```
 
+Controlling vlc
+```
+# fast-forward with pitch bend
+# vlc sadly doesn't support negative playback rates yet, so no rewind
+# this solution is built for use with sway and dbus
+MIDI{STATUS==pb}{DATA_2>=64}("{}"→f"{lerp(((DATA_2 - 64) / 63), 1, 8)}") (python)[BLOCK|DEBOUNCE]→
+{
+	import subprocess
+	focused_pid = int(
+		subprocess.check_output(
+			"swaymsg -t get_tree | jq '.. | select(.type?) | select(.focused==true).pid'",
+			text=True,
+			shell=True
+		)
+	)
+	import dbus
+	session_bus = dbus.SessionBus()
+	object_path = "/org/mpris/MediaPlayer2"
+	object_base_name = "org.mpris.MediaPlayer2.vlc"
+	focused_object_name = f"{object_base_name}.instance{focused_pid}"
+	object_name = focused_object_name if focused_object_name in session_bus.list_names() else object_base_name
+	vlc_object = session_bus.get_object(object_name, object_path)
+	vlc_object.Set("org.mpris.MediaPlayer2.Player", "Rate", {}, dbus_interface="org.freedesktop.DBus.Properties")
+}
+```
+
 Controlling the brightness of a smart light with HomeAssistant
 ```
 MIDI{STATUS==cc}{CC_FUNCTION==77}("{}"→f"{round(CC_VALUE_SCALED(0, 255))}") [BLOCK|DEBOUNCE]→
