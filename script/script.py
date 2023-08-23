@@ -182,7 +182,10 @@ class Script:
         self.invocationThread = None
         if self.flags & BACKGROUND and self.backgroundProcess:
             if self.backgroundProcess.stdin and self.argumentsOverSTDIN:
-                self.backgroundProcess.stdin.close()
+                try:
+                    self.backgroundProcess.stdin.close()
+                except Exception:
+                    pass
                 if self.flags & KILL:
                     self.backgroundProcess.kill()
             else:
@@ -269,8 +272,11 @@ class Script:
         else:
             if self.flags & BACKGROUND and self.backgroundProcess:
                 if self.backgroundProcess.stdin:
-                    self.backgroundProcess.stdin.write(processedArguments)
-                    self.backgroundProcess.stdin.flush()
+                    try:
+                        self.backgroundProcess.stdin.write(processedArguments)
+                        self.backgroundProcess.stdin.flush()
+                    except Exception as exception:
+                        logError(f"failed to send arguments to background process: {exceptionStr(exception)}")
             else:
                 self.runProcess(self.script, processedArguments)
 

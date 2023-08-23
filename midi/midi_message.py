@@ -1,5 +1,5 @@
 class MIDIMessage:
-    def __init__(self, message):
+    def __init__(self, message, time):
         self.message = message
         assert len(self.message) > 0
         self.data_0 = self.message[0]
@@ -7,6 +7,7 @@ class MIDIMessage:
         self.data_2 = self.message[2] if len(self.message) > 2 else None
         self.status = self.data_0 >> 4
         self.channel = self.data_0 & 0xF
+        self.time = time
 
     def getMessage(self):
         return self.message
@@ -25,3 +26,6 @@ class MIDIMessage:
 
     def getChannel(self):
         return self.channel
+
+    def getTime(self):
+        return self.time

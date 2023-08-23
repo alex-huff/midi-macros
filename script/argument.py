@@ -44,11 +44,12 @@ MIDI_MESSAGE_FORMAT_MESSAGE_BYTES = ArgumentFormat(
 MIDI_MESSAGE_FORMAT_MESSAGE_BYTES_HEX = ArgumentFormat(
     lambda m: "-".join(hex(d) for d in m.getMessage()), "MESSAGE_BYTES_HEX"
 )
-MIDI_MESSAGE_FORMAT_STATUS = ArgumentFormat(lambda m: m.getStatus(), "STATUS")
-MIDI_MESSAGE_FORMAT_CHANNEL = ArgumentFormat(lambda m: m.getChannel(), "CHANNEL")
 MIDI_MESSAGE_FORMAT_DATA_0 = ArgumentFormat(lambda m: m.getData0(), "DATA_0")
 MIDI_MESSAGE_FORMAT_DATA_1 = ArgumentFormat(lambda m: m.getData1(), "DATA_1")
 MIDI_MESSAGE_FORMAT_DATA_2 = ArgumentFormat(lambda m: m.getData2(), "DATA_2")
+MIDI_MESSAGE_FORMAT_STATUS = ArgumentFormat(lambda m: m.getStatus(), "STATUS")
+MIDI_MESSAGE_FORMAT_CHANNEL = ArgumentFormat(lambda m: m.getChannel(), "CHANNEL")
+MIDI_MESSAGE_FORMAT_TIME = ArgumentFormat(lambda m: m.getTime(), "TIME")
 MIDI_MESSAGE_FORMAT_STATUS_HEX = ArgumentFormat(
     lambda m: hex(m.getStatus()), "STATUS_HEX"
 )
@@ -102,6 +103,7 @@ SINGLE_ARGUMENT_NUMBER_RANGE = ArgumentNumberRange(1, 1)
 
 PLAYED_NOTES_ARGUMENT_DEFINITION_SPECIFIER = "NOTES"
 MIDI_ARGUMENT_DEFINITION_SPECIFIER = "MIDI"
+
 
 class ArgumentDefinition(ABC):
     def __init__(
@@ -342,6 +344,7 @@ class MIDIMessageArgumentDefinition(ArgumentDefinition):
         DATA_2 = MESSAGE.getData2()
         STATUS = MESSAGE.getStatus()
         CHANNEL = MESSAGE.getChannel()
+        TIME = MESSAGE.getTime()
         CC_VALUE = DATA_2
         CC_FUNCTION = DATA_1
         m = MESSAGE
@@ -350,6 +353,7 @@ class MIDIMessageArgumentDefinition(ArgumentDefinition):
         d2 = DATA_2
         s = STATUS
         c = CHANNEL
+        t = TIME
         ccv = CC_VALUE
         ccf = CC_FUNCTION
         if eval(matchPredicate):
@@ -360,11 +364,12 @@ class MIDIMessageArgumentDefinition(ArgumentDefinition):
         MESSAGE = message
         MESSAGE_BYTES = MIDI_MESSAGE_FORMAT_MESSAGE_BYTES.convert(message)
         MESSAGE_BYTES_HEX = MIDI_MESSAGE_FORMAT_MESSAGE_BYTES_HEX.convert(message)
-        STATUS = MIDI_MESSAGE_FORMAT_STATUS.convert(message)
-        CHANNEL = MIDI_MESSAGE_FORMAT_CHANNEL.convert(message)
         DATA_0 = MIDI_MESSAGE_FORMAT_DATA_0.convert(message)
         DATA_1 = MIDI_MESSAGE_FORMAT_DATA_1.convert(message)
         DATA_2 = MIDI_MESSAGE_FORMAT_DATA_2.convert(message)
+        STATUS = MIDI_MESSAGE_FORMAT_STATUS.convert(message)
+        CHANNEL = MIDI_MESSAGE_FORMAT_CHANNEL.convert(message)
+        TIME = MIDI_MESSAGE_FORMAT_TIME.convert(message)
         STATUS_HEX = MIDI_MESSAGE_FORMAT_STATUS_HEX.convert(message)
         CHANNEL_HEX = MIDI_MESSAGE_FORMAT_CHANNEL_HEX.convert(message)
         DATA_0_HEX = MIDI_MESSAGE_FORMAT_DATA_0_HEX.convert(message)
@@ -385,11 +390,12 @@ class MIDIMessageArgumentDefinition(ArgumentDefinition):
         m = MESSAGE
         mbs = MESSAGE_BYTES
         mbsh = MESSAGE_BYTES_HEX
-        s = STATUS
-        c = CHANNEL
         d0 = DATA_0
         d1 = DATA_1
         d2 = DATA_2
+        s = STATUS
+        c = CHANNEL
+        t = TIME
         sh = STATUS_HEX
         ch = CHANNEL_HEX
         d0h = DATA_0_HEX

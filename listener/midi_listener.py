@@ -188,7 +188,7 @@ class MidiListener:
         message, _ = event
         if not message:
             return
-        message = MIDIMessage(message)
+        message = MIDIMessage(message, time.time_ns())
         self.executeMacros(message)
         statusType = message.getStatus()
         channel = message.getChannel()
