@@ -37,6 +37,7 @@ from config.mm_config import (
 )
 from log.mm_logging import loggingContext, logInfo, logError, exceptionStr
 from locking.locking import clearLocks
+from script.script_error import ScriptError
 
 
 def verifyDirectoryExists(path, name):
@@ -111,7 +112,7 @@ class MidiMacros:
         except Exception as exception:
             with loggingContext(callback.getProfile()):
                 logError(
-                    f"failed to run callback, {exceptionStr(exception)}",
+                    f"failed to run callback: {exceptionStr(exception)}",
                 )
 
     def initialize(self):
@@ -219,6 +220,12 @@ class MidiMacros:
                 profile,
                 subprofile,
             )
+        except ScriptError as scriptError:
+            raise ConfigException(
+                f"invalid script configuration: {scriptError.message}",
+                profile,
+                subprofile,
+            )
         except (FileNotFoundError, IsADirectoryError):
             raise ConfigException(
                 f"invalid macro file: {macroFilePath}", profile, subprofile
@@ -316,7 +323,7 @@ class MidiMacros:
         except IPCIOError as exception:
             logError(exception.message)
         except Exception as exception:
-            logError(f"failed to handle client, {exceptionStr(exception)}")
+            logError(f"failed to handle client: {exceptionStr(exception)}")
         finally:
             ipcSocket.close()
 

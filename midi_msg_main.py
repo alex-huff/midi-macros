@@ -37,7 +37,7 @@ except PermissionError:
 except IPCIOError as ipcIOError:
     logError(ipcIOError)
 except Exception as exception:
-    logError(f"failed to send message, {exceptionStr(exception)}")
+    logError(f"failed to send message: {exceptionStr(exception)}")
 finally:
     ipcSocket.close()
 sys.exit(-1)

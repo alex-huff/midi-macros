@@ -430,7 +430,7 @@ def parseArgumentProcessor(parseBuffer, argumentFormats, allowArgumentSeperator=
         argumentSeperator = parseArgumentSeperator(parseBuffer)
         parsedArgumentSeperator = True
     if bufferHasSubstring(parseBuffer, 'f"'):
-        argumentFormat = parseFStringArgumentFormat(parseBuffer)
+        argumentFormat = parseFString(parseBuffer)
     else:
         argumentFormatStringStart = parseBuffer.at()
         parseBuffer.skipTillChar(")")
@@ -493,6 +493,10 @@ def readQuotedString(parseBuffer, quoteChar='"', returnString=True):
         return parseBuffer.stringFrom(startPosition, endPosition)
 
 
+def eatQuotedString(parseBuffer, quoteChar='"'):
+    return readQuotedString(parseBuffer, quoteChar, False)
+
+
 def parseArgumentSeperator(parseBuffer):
     if parseBuffer.getCurrentChar() != "[":
         generateParseError(
@@ -545,16 +549,16 @@ def decodeCStyleEscapes(string):
     return string.encode("latin1", "backslashreplace").decode("unicode-escape")
 
 
-def parseFStringArgumentFormat(parseBuffer):
-    if parseBuffer.getCurrentChar() != "f":
+def parseFString(parseBuffer):
+    if not bufferHasSubstring(parseBuffer, 'f"'):
         generateParseError(
             parseBuffer,
-            "f-string argument format",
+            "f-string",
             parseBuffer.getCurrentChar(),
         )
     fStringStart = parseBuffer.at()
     parseBuffer.skip(1)
-    readQuotedString(parseBuffer, returnString=False)
+    eatQuotedString(parseBuffer)
     return parseBuffer.stringFrom(fStringStart, parseBuffer.at())
 
 
@@ -594,19 +598,23 @@ def parseScriptFlags(parseBuffer):
         parseBuffer.eatWhitespace()
         parsedKeyValue = False
         isKeyValueFlag = parseBuffer.getCurrentChar() == "="
-        flagSet = KEY_VALUE_FLAGS if isKeyValueFlag else FLAGS
-        if flag not in flagSet:
+        flagDict = KEY_VALUE_FLAGS if isKeyValueFlag else FLAGS
+        if flag not in flagDict:
             parseBuffer.jump(flagStart)
-            generateParseError(parseBuffer, f"one of {'|'.join(flagSet.keys())}", flag)
+            generateParseError(parseBuffer, f"one of {'|'.join(flagDict.keys())}", flag)
         if isKeyValueFlag:
             parseBuffer.skip(1)
             parseBuffer.eatWhitespace()
-            if parseBuffer.getCurrentChar() == '"':
-                value = parseQuotedString(parseBuffer)
-            else:
-                valueStart = parseBuffer.at()
-                parseBuffer.skipTillChar("|]", terminateOnWhitespace=True)
-                value = parseBuffer.stringFrom(valueStart, parseBuffer.at())
+            match (KEY_VALUE_FLAGS[flag]):
+                case FlagType.STRING_TYPE:
+                    if parseBuffer.getCurrentChar() == '"':
+                        value = parseQuotedString(parseBuffer)
+                    else:
+                        valueStart = parseBuffer.at()
+                        parseBuffer.skipTillChar("|]", terminateOnWhitespace=True)
+                        value = parseBuffer.stringFrom(valueStart, parseBuffer.at())
+                case FlagType.FSTRING_TYPE:
+                    value = parseFString(parseBuffer)
             keyValueFlags[flag] = value
             parseBuffer.eatWhitespace()
             parsedKeyValue = True
