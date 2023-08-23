@@ -80,16 +80,16 @@ def parseMacroFile(macroFile, source, profile, subprofile=None):
 def parseMacro(parseBuffer, profile, subprofile=None):
     triggers = (
         parseTriggers(parseBuffer)
-        if (
-            parseBuffer.getCurrentChar() != "*"
-            and not bufferHasSubstring(parseBuffer, "MIDI")
+        if not (
+            bufferHasSubstring(parseBuffer, PLAYED_NOTES_ARGUMENT_DEFINITION_SPECIFIER)
+            or bufferHasSubstring(parseBuffer, MIDI_ARGUMENT_DEFINITION_SPECIFIER)
         )
         else []
     )
     parseBuffer.skipTillData()
     argumentDefinition = ZERO_ARGUMENT_DEFINITION
     parsedArgumentDefinition = False
-    if parseBuffer.getCurrentChar() == "*" or bufferHasSubstring(parseBuffer, "MIDI"):
+    if bufferHasSubstring(parseBuffer, PLAYED_NOTES_ARGUMENT_DEFINITION_SPECIFIER) or bufferHasSubstring(parseBuffer, MIDI_ARGUMENT_DEFINITION_SPECIFIER):
         argumentDefinition = parseArgumentDefinition(parseBuffer)
         parseBuffer.skipTillData()
         parsedArgumentDefinition = True
@@ -319,20 +319,20 @@ def parseMatchPredicate(parseBuffer):
 
 
 def parseArgumentDefinition(parseBuffer):
-    if parseBuffer.getCurrentChar() != "*" and not bufferHasSubstring(
-        parseBuffer, "MIDI"
+    if not (bufferHasSubstring(parseBuffer, PLAYED_NOTES_ARGUMENT_DEFINITION_SPECIFIER) or bufferHasSubstring(
+        parseBuffer, MIDI_ARGUMENT_DEFINITION_SPECIFIER)
     ):
         generateParseError(
             parseBuffer,
-            "* or MIDI (argument definition specifier)",
+            f"{PLAYED_NOTES_ARGUMENT_DEFINITION_SPECIFIER} or {MIDI_ARGUMENT_DEFINITION_SPECIFIER} (argument definition specifier)",
             parseBuffer.getCurrentChar(),
         )
     isPlayedNotesArgumentDefinition = False
-    if parseBuffer.getCurrentChar() == "*":
-        parseBuffer.skip(1)
+    if bufferHasSubstring(parseBuffer, PLAYED_NOTES_ARGUMENT_DEFINITION_SPECIFIER):
+        parseBuffer.skip(len(PLAYED_NOTES_ARGUMENT_DEFINITION_SPECIFIER))
         isPlayedNotesArgumentDefinition = True
     else:
-        parseBuffer.skip(4)
+        parseBuffer.skip(len(MIDI_ARGUMENT_DEFINITION_SPECIFIER))
     argumentNumberRange = UNBOUNDED_ARGUMENT_NUMBER_RANGE
     if isPlayedNotesArgumentDefinition and parseBuffer.getCurrentChar() == "[":
         argumentNumberRange = parseArgumentNumberRange(parseBuffer)

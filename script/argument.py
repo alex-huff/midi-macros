@@ -100,6 +100,9 @@ ZERO_ARGUMENT_NUMBER_RANGE = ArgumentNumberRange(0, 0)
 SINGLE_ARGUMENT_NUMBER_RANGE = ArgumentNumberRange(1, 1)
 
 
+PLAYED_NOTES_ARGUMENT_DEFINITION_SPECIFIER = "NOTES"
+MIDI_ARGUMENT_DEFINITION_SPECIFIER = "MIDI"
+
 class ArgumentDefinition(ABC):
     def __init__(
         self,
@@ -247,7 +250,7 @@ class PlayedNotesArgumentDefinition(ArgumentDefinition):
         )
 
     def getIdentifier(self):
-        return "*"
+        return PLAYED_NOTES_ARGUMENT_DEFINITION_SPECIFIER
 
     def testMatchPredicate(self, matchPredicate, arguments):
         NOTES = arguments
