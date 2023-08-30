@@ -75,8 +75,8 @@ class Script:
         )
         self.argumentsOverSTDIN = (
             argumentDefinition.getShouldProcessArguments()
-            and not self.argumentDefinition.getReplaceString()
-        )
+            or self.invocationFormat != None
+        ) and not self.argumentDefinition.getReplaceString()
         self.scriptPathAsEnvVar = self.flags & SCRIPT_PATH_AS_ENV_VAR or (
             self.interpreter and self.argumentsOverSTDIN
         )
@@ -253,13 +253,18 @@ class Script:
         return formattedArguments
 
     def invoke(self, arguments):
-        if not self.argumentDefinition.getShouldProcessArguments():
+        if (
+            not self.argumentDefinition.getShouldProcessArguments()
+            and self.invocationFormat == None
+        ):
             if not self.flags & BACKGROUND:
                 self.runProcess(self.script)
             return
         try:
             processedArguments = self.formatArguments(
                 self.argumentDefinition.processArguments(arguments)
+                if self.argumentDefinition.getShouldProcessArguments()
+                else ""
             )
         except Exception:
             logError(
@@ -276,7 +281,9 @@ class Script:
                         self.backgroundProcess.stdin.write(processedArguments)
                         self.backgroundProcess.stdin.flush()
                     except Exception as exception:
-                        logError(f"failed to send arguments to background process: {exceptionStr(exception)}")
+                        logError(
+                            f"failed to send arguments to background process: {exceptionStr(exception)}"
+                        )
             else:
                 self.runProcess(self.script, processedArguments)
 

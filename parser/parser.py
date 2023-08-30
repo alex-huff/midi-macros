@@ -90,7 +90,9 @@ def parseMacro(parseBuffer, profile, subprofile=None):
     parseBuffer.skipTillData()
     argumentDefinition = ZERO_ARGUMENT_DEFINITION
     parsedArgumentDefinition = False
-    if bufferHasSubstring(parseBuffer, PLAYED_NOTES_ARGUMENT_DEFINITION_SPECIFIER) or bufferHasSubstring(parseBuffer, MIDI_ARGUMENT_DEFINITION_SPECIFIER):
+    if bufferHasSubstring(
+        parseBuffer, PLAYED_NOTES_ARGUMENT_DEFINITION_SPECIFIER
+    ) or bufferHasSubstring(parseBuffer, MIDI_ARGUMENT_DEFINITION_SPECIFIER):
         argumentDefinition = parseArgumentDefinition(parseBuffer)
         parseBuffer.skipTillData()
         parsedArgumentDefinition = True
@@ -320,8 +322,9 @@ def parseMatchPredicate(parseBuffer):
 
 
 def parseArgumentDefinition(parseBuffer):
-    if not (bufferHasSubstring(parseBuffer, PLAYED_NOTES_ARGUMENT_DEFINITION_SPECIFIER) or bufferHasSubstring(
-        parseBuffer, MIDI_ARGUMENT_DEFINITION_SPECIFIER)
+    if not (
+        bufferHasSubstring(parseBuffer, PLAYED_NOTES_ARGUMENT_DEFINITION_SPECIFIER)
+        or bufferHasSubstring(parseBuffer, MIDI_ARGUMENT_DEFINITION_SPECIFIER)
     ):
         generateParseError(
             parseBuffer,
