@@ -78,21 +78,36 @@ def parseMacroFile(macroFile, source, profile, subprofile=None):
         return macroTree
 
 
-def parseMacro(parseBuffer, profile, subprofile=None):
-    triggers = (
-        parseTriggers(parseBuffer)
-        if not (
-            bufferHasSubstring(parseBuffer, PLAYED_NOTES_ARGUMENT_DEFINITION_SPECIFIER)
-            or bufferHasSubstring(parseBuffer, MIDI_ARGUMENT_DEFINITION_SPECIFIER)
-        )
-        else []
+def bufferAtArgumentDefinitionSpecifier(parseBuffer):
+    return (
+        bufferHasSubstring(parseBuffer, PLAYED_NOTES_ARGUMENT_DEFINITION_SPECIFIER)
+        or bufferHasSubstring(parseBuffer, MIDI_ARGUMENT_DEFINITION_SPECIFIER)
     )
-    parseBuffer.skipTillData()
+
+
+def parseMacro(parseBuffer, profile, subprofile=None):
+    atArgumentDefinitionSpecifier = bufferAtArgumentDefinitionSpecifier(parseBuffer)
+    if not atArgumentDefinitionSpecifier and not (
+        parseBuffer.getCurrentChar() == "["
+        or parseBuffer.getCurrentChar() == "("
+        or parseBuffer.getCurrentChar().isdigit()
+        or BASE_PITCH_REGEX.match(parseBuffer.getCurrentChar())
+    ):
+        generateParseError(
+            parseBuffer,
+            "trigger or argument definition",
+            parseBuffer.getCurrentChar()
+        )
+    triggers = []
+    parsedTriggers = False
+    if not atArgumentDefinitionSpecifier:
+        triggers = parseTriggers(parseBuffer)
+        parseBuffer.skipTillData()
+        parsedTriggers = True
+        atArgumentDefinitionSpecifier = bufferAtArgumentDefinitionSpecifier(parseBuffer)
     argumentDefinition = ZERO_ARGUMENT_DEFINITION
     parsedArgumentDefinition = False
-    if bufferHasSubstring(
-        parseBuffer, PLAYED_NOTES_ARGUMENT_DEFINITION_SPECIFIER
-    ) or bufferHasSubstring(parseBuffer, MIDI_ARGUMENT_DEFINITION_SPECIFIER):
+    if atArgumentDefinitionSpecifier:
         argumentDefinition = parseArgumentDefinition(parseBuffer)
         parseBuffer.skipTillData()
         parsedArgumentDefinition = True
@@ -187,7 +202,7 @@ def parseTrigger(parseBuffer):
         parseBuffer.getCurrentChar()
     ):
         return parseNote(parseBuffer)
-    generateParseError(parseBuffer, "note or chord", parseBuffer.getCurrentChar())
+    generateParseError(parseBuffer, "trigger", parseBuffer.getCurrentChar())
 
 
 def parseChord(parseBuffer):
