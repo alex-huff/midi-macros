@@ -45,26 +45,26 @@ MIDI{STATUS==cc}{CC_FUNCTION==71}("{}"→CC_VALUE_PERCENT) [BLOCK|DEBOUNCE]→ c
 # this solution is built for use with sway
 MIDI{STATUS==cc}{CC_FUNCTION==72}("{}"→f"{CC_VALUE_SCALED(0, 1)}") (python)[BLOCK|DEBOUNCE]→
 {
-	import subprocess
-	focused_pid = int(
-		subprocess.check_output(
-			"swaymsg -t get_tree | jq '.. | select(.type?) | select(.focused==true).pid'",
-			text=True,
-			shell=True
-		)
-	)
-	import psutil
-	focused_process = psutil.Process(focused_pid)
-	process_hierarchy = {p.pid for p in focused_process.children(recursive=True)}
-	process_hierarchy.add(focused_pid)
-	import pulsectl
-	pid_property = "application.process.id"
-	with pulsectl.Pulse("mm-pulseaudio-client") as pulse:
-		for sink_input in pulse.sink_input_list():
-			sink_input_pid = sink_input.proplist.get(pid_property)
-			if sink_input_pid and int(sink_input_pid) in process_hierarchy:
-				pulse.volume_set_all_chans(sink_input, {})
-				break
+    import subprocess
+    focused_pid = int(
+        subprocess.check_output(
+            "swaymsg -t get_tree | jq '.. | select(.type?) | select(.focused==true).pid'",
+            text=True,
+            shell=True
+        )
+    )
+    import psutil
+    focused_process = psutil.Process(focused_pid)
+    process_hierarchy = {p.pid for p in focused_process.children(recursive=True)}
+    process_hierarchy.add(focused_pid)
+    import pulsectl
+    pid_property = "application.process.id"
+    with pulsectl.Pulse("mm-pulseaudio-client") as pulse:
+        for sink_input in pulse.sink_input_list():
+            sink_input_pid = sink_input.proplist.get(pid_property)
+            if sink_input_pid and int(sink_input_pid) in process_hierarchy:
+                pulse.volume_set_all_chans(sink_input, {})
+                break
 }
 ```
 
@@ -78,8 +78,8 @@ Controlling cmus
 # seek current song with knob
 C3 MIDI{STATUS==cc}{CC_FUNCTION==72}("{}"→CC_VALUE) [BLOCK|DEBOUNCE]→
 {
-	current_song_duration=$(cmus-remote -Q | grep duration | cut -d " " -f 2)
-	cmus-remote --seek $(python -c "print(round(({} / 127) * $current_song_duration))")
+    current_song_duration=$(cmus-remote -Q | grep duration | cut -d " " -f 2)
+    cmus-remote --seek $(python -c "print(round(({} / 127) * $current_song_duration))")
 }
 ```
 
@@ -90,22 +90,22 @@ Controlling vlc
 # this solution is built for use with sway and dbus
 MIDI{STATUS==pb}{DATA_2>=64}("{}"→f"{lerp(((DATA_2 - 64) / 63), 1, 8)}") (python)[BLOCK|DEBOUNCE]→
 {
-	import subprocess
-	focused_pid = int(
-		subprocess.check_output(
-			"swaymsg -t get_tree | jq '.. | select(.type?) | select(.focused==true).pid'",
-			text=True,
-			shell=True
-		)
-	)
-	import dbus
-	session_bus = dbus.SessionBus()
-	object_path = "/org/mpris/MediaPlayer2"
-	object_base_name = "org.mpris.MediaPlayer2.vlc"
-	focused_object_name = f"{object_base_name}.instance{focused_pid}"
-	object_name = focused_object_name if focused_object_name in session_bus.list_names() else object_base_name
-	vlc_object = session_bus.get_object(object_name, object_path)
-	vlc_object.Set("org.mpris.MediaPlayer2.Player", "Rate", {}, dbus_interface="org.freedesktop.DBus.Properties")
+    import subprocess
+    focused_pid = int(
+        subprocess.check_output(
+            "swaymsg -t get_tree | jq '.. | select(.type?) | select(.focused==true).pid'",
+            text=True,
+            shell=True
+        )
+    )
+    import dbus
+    session_bus = dbus.SessionBus()
+    object_path = "/org/mpris/MediaPlayer2"
+    object_base_name = "org.mpris.MediaPlayer2.vlc"
+    focused_object_name = f"{object_base_name}.instance{focused_pid}"
+    object_name = focused_object_name if focused_object_name in session_bus.list_names() else object_base_name
+    vlc_object = session_bus.get_object(object_name, object_path)
+    vlc_object.Set("org.mpris.MediaPlayer2.Player", "Rate", {}, dbus_interface="org.freedesktop.DBus.Properties")
 }
 ```
 
@@ -113,7 +113,7 @@ Controlling the brightness of a smart light with HomeAssistant
 ```
 MIDI{STATUS==cc}{CC_FUNCTION==77}("{}"→f"{round(CC_VALUE_SCALED(0, 255))}") [BLOCK|DEBOUNCE]→
 {
-	hass-cli service call --arguments "entity_id=light.color_lights,brightness={}" light.turn_on
+    hass-cli service call --arguments "entity_id=light.color_lights,brightness={}" light.turn_on
 }
 ```
 
@@ -121,8 +121,8 @@ Switching between subprofiles with rofi
 ```
 48{c==9} →
 {
-	profile="MPK mini"
-	subprofile=$(mm-msg profile "$profile" get-loaded-subprofiles | rofi -dmenu)
-	mm-msg profile "$profile" set-subprofile "$subprofile"
+    profile="MPK mini"
+    subprofile=$(mm-msg profile "$profile" get-loaded-subprofiles | rofi -dmenu)
+    mm-msg profile "$profile" set-subprofile "$subprofile"
 }
 ```

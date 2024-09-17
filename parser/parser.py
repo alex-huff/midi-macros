@@ -15,7 +15,7 @@ from script.script import *
 BASE_PITCH_REGEX = re.compile(r"[A-Ga-g]")
 ARROW_START_CHARS = "→-"
 MODIFIERS = "#♯b♭𝄪𝄫"
-INDENT = "\t"
+INDENT = "    "
 PLAYED_NOTE_ARGUMENT_FORMATS = {
     "MIDI": PLAYED_NOTE_FORMAT_MIDI,
     "ASPN": PLAYED_NOTE_FORMAT_ASPN,
