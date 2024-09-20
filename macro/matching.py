@@ -8,13 +8,13 @@ from util.time_util import *
 
 def numNotesInTrigger(trigger):
     match (trigger):
-        case (MacroNote()):
+        case MacroNote():
             return 1
-        case (MacroChord()):
+        case MacroChord():
             return len(trigger.getChord())
-        case (list()):
+        case list():
             return sum(numNotesInTrigger(t) for t in trigger)
-        case (_):
+        case _:
             return 0
 
 
@@ -98,10 +98,10 @@ def testTriggerWithPlayedNotes(
     position = start
     for trigger in triggers:
         match (trigger):
-            case (MacroChord()):
+            case MacroChord():
                 if not testChordWithMacroChord(playedNotes, position, trigger):
                     return False
-            case (MacroNote()):
+            case MacroNote():
                 if not testNoteWithMacroNote(playedNotes, position, trigger):
                     return False
         position += numNotesInTrigger(trigger)

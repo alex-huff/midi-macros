@@ -65,7 +65,7 @@ class MacroTree:
             return
         for trigger, nextNode in currentNode.getBranches().items():
             match (trigger):
-                case (MacroChord()):
+                case MacroChord():
                     chordLength = len(trigger.getChord())
                     if len(
                         trigger.getChord()
@@ -77,7 +77,7 @@ class MacroTree:
                         self.recurseMacroTreeAndExecuteMacros(
                             nextNode, position + chordLength, playedNotes, midiMessage
                         )
-                case (MacroNote()):
+                case MacroNote():
                     if not nextNode.shouldProcessNumActions(
                         keysLeftToProcess - 1 + addedActions
                     ):

@@ -79,10 +79,9 @@ def parseMacroFile(macroFile, source, profile, subprofile=None):
 
 
 def bufferAtArgumentDefinitionSpecifier(parseBuffer):
-    return (
-        bufferHasSubstring(parseBuffer, PLAYED_NOTES_ARGUMENT_DEFINITION_SPECIFIER)
-        or bufferHasSubstring(parseBuffer, MIDI_ARGUMENT_DEFINITION_SPECIFIER)
-    )
+    return bufferHasSubstring(
+        parseBuffer, PLAYED_NOTES_ARGUMENT_DEFINITION_SPECIFIER
+    ) or bufferHasSubstring(parseBuffer, MIDI_ARGUMENT_DEFINITION_SPECIFIER)
 
 
 def parseMacro(parseBuffer, profile, subprofile=None):
@@ -291,15 +290,15 @@ def parseASPNModifiers(parseBuffer):
     offset = 0
     while True:
         match (parseBuffer.getCurrentChar()):
-            case ("#" | "♯"):
+            case "#" | "♯":
                 offset += 1
-            case ("b" | "♭"):
+            case "b" | "♭":
                 offset -= 1
-            case ("𝄪"):
+            case "𝄪":
                 offset += 2
-            case ("𝄫"):
+            case "𝄫":
                 offset -= 2
-            case (_):
+            case _:
                 break
         parseBuffer.skip(1)
     return offset
@@ -320,11 +319,11 @@ def parseMatchPredicate(parseBuffer):
     numUnmatchedOpenLeftCurlyBraces = 0
     while numUnmatchedOpenLeftCurlyBraces > 0 or parseBuffer.getCurrentChar() != "}":
         match (parseBuffer.getCurrentChar()):
-            case ("{"):
+            case "{":
                 numUnmatchedOpenLeftCurlyBraces += 1
-            case ("}"):
+            case "}":
                 numUnmatchedOpenLeftCurlyBraces -= 1
-            case ('"' | "'"):
+            case '"' | "'":
                 eatPythonString(parseBuffer)
                 continue
         if numUnmatchedOpenLeftCurlyBraces < 0:
@@ -363,9 +362,11 @@ def parseArgumentDefinition(parseBuffer):
     if parseBuffer.getCurrentChar() == "(":
         argumentFormat, replaceString, argumentSeperator = parseArgumentProcessor(
             parseBuffer,
-            PLAYED_NOTE_ARGUMENT_FORMATS
-            if isPlayedNotesArgumentDefinition
-            else MIDI_ARGUMENT_FORMATS,
+            (
+                PLAYED_NOTE_ARGUMENT_FORMATS
+                if isPlayedNotesArgumentDefinition
+                else MIDI_ARGUMENT_FORMATS
+            ),
             allowArgumentSeperator=isPlayedNotesArgumentDefinition,
         )
         if isPlayedNotesArgumentDefinition:

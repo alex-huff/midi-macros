@@ -258,11 +258,9 @@ class PlayedNotesArgumentDefinition(ArgumentDefinition):
         NOTES = arguments
         CHANNEL = {n.getChannel() for n in NOTES}
         CHANNEL = tuple(CHANNEL)[0] if len(CHANNEL) == 1 else CHANNEL
-        NOTES_START_TIME = (
-            NOTES_FINISH_TIME
-        ) = (
-            NOTES_ELAPSED_TIME
-        ) = NOTES_MIN_VELOCITY = NOTES_MAX_VELOCITY = NOTES_AVERAGE_VELOCITY = None
+        NOTES_START_TIME = NOTES_FINISH_TIME = NOTES_ELAPSED_TIME = (
+            NOTES_MIN_VELOCITY
+        ) = NOTES_MAX_VELOCITY = NOTES_AVERAGE_VELOCITY = None
         if len(arguments) > 0:
             NOTES_START_TIME = NOTES[0].getTime()
             NOTES_FINISH_TIME = NOTES[-1].getTime()

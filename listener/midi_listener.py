@@ -118,9 +118,9 @@ class MidiListener:
                 "midi-input": self.portName,
                 "sustain": self.pedalDown,
                 "virtual-sustain": self.virtualPedalDown,
-                "subprofiles": self.subprofileHolder.getInfo()
-                if self.subprofileHolder
-                else None,
+                "subprofiles": (
+                    self.subprofileHolder.getInfo() if self.subprofileHolder else None
+                ),
             }
 
     def booleanCallbackMessage(self, enabled):

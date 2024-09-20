@@ -206,9 +206,11 @@ class Script:
             env[SCRIPT_PATH_ENV_VAR] = scriptPath
         process = subprocess.Popen(
             self.interpreter if self.interpreter else script,
-            stdin=subprocess.PIPE
-            if self.scriptOverSTDIN or self.argumentsOverSTDIN
-            else None,
+            stdin=(
+                subprocess.PIPE
+                if self.scriptOverSTDIN or self.argumentsOverSTDIN
+                else None
+            ),
             text=True,
             shell=True,
             start_new_session=True,
