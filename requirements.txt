@@ -1,2 +1,2 @@
 appdirs==1.4.4
-python-rtmidi==1.5.4
+python-rtmidi==1.5.8
