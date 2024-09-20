@@ -90,13 +90,12 @@ def parseMacro(parseBuffer, profile, subprofile=None):
     if not atArgumentDefinitionSpecifier and not (
         parseBuffer.getCurrentChar() == "["
         or parseBuffer.getCurrentChar() == "("
+        or parseBuffer.getCurrentChar() == "*"
         or parseBuffer.getCurrentChar().isdigit()
         or BASE_PITCH_REGEX.match(parseBuffer.getCurrentChar())
     ):
         generateParseError(
-            parseBuffer,
-            "trigger or argument definition",
-            parseBuffer.getCurrentChar()
+            parseBuffer, "trigger or argument definition", parseBuffer.getCurrentChar()
         )
     triggers = []
     parsedTriggers = False
@@ -171,6 +170,9 @@ def eatArrow(parseBuffer):
 
 
 def parseTriggers(parseBuffer):
+    if parseBuffer.getCurrentChar() == "*":  # triggerless wildcard
+        parseBuffer.skip(1)
+        return None
     triggers = []
     while True:
         parseBuffer.skipTillData()

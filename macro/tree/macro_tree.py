@@ -12,11 +12,15 @@ from macro.matching import (
 class MacroTree:
     def __init__(self):
         self.root = MacroTreeNode()
+        self.triggerlessScripts = []
 
     def getRoot(self):
         return self.root
 
     def addMacroToTree(self, macro):
+        if macro.getTriggers() == None:
+            self.triggerlessScripts.append(macro.getScript())
+            return
         currentNode = self.root
         notesTillScriptExecution = list(
             accumulate(numNotesInTrigger(t) for t in reversed(macro.getTriggers()))
@@ -33,6 +37,10 @@ class MacroTree:
         currentNode.addScript(macro.getScript())
 
     def executeMacros(self, playedNotes, midiMessage=None):
+        if self.triggerlessScripts:
+            arguments = (midiMessage,) if midiMessage else playedNotes
+            for script in self.triggerlessScripts:
+                script.queueIfArgumentsMatch(arguments)
         if not self.root.shouldProcessNumActions(
             len(playedNotes) + (1 if midiMessage else 0)
         ):
