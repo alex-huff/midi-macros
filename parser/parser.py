@@ -437,6 +437,7 @@ def parseArgumentProcessor(parseBuffer, argumentFormats, allowArgumentSeperator=
             parseBuffer.getCurrentChar(),
         )
     parseBuffer.skip(1)
+    parseBuffer.skipTillData()
     replaceString = None
     parsedReplaceString = False
     if parseBuffer.getCurrentChar() == '"':
@@ -478,6 +479,7 @@ def parseArgumentProcessor(parseBuffer, argumentFormats, allowArgumentSeperator=
                 None,
             )
         argumentFormat = argumentFormats[argumentFormatString]
+    parseBuffer.skipTillData()
     if parseBuffer.getCurrentChar() != ")":
         generateParseError(parseBuffer, ")", parseBuffer.getCurrentChar())
     parseBuffer.skip(1)
