@@ -37,10 +37,9 @@ class MacroTree:
         currentNode.addScript(macro.getScript())
 
     def executeMacros(self, playedNotes, midiMessage=None):
-        if self.triggerlessScripts:
-            arguments = (midiMessage,) if midiMessage else playedNotes
+        if self.triggerlessScripts and midiMessage:
             for script in self.triggerlessScripts:
-                script.queueIfArgumentsMatch(arguments)
+                script.queueIfArgumentsMatch((midiMessage,))
         if not self.root.shouldProcessNumActions(
             len(playedNotes) + (1 if midiMessage else 0)
         ):

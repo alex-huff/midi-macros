@@ -47,11 +47,12 @@ MIDI_ARGUMENT_FORMATS = {
 }
 
 
-def generateParseError(parseBuffer, expected, got):
+def generateParseError(parseBuffer, expected, got=None, help=None):
     expectedString = f"expected: {expected}\n" if expected else ""
     gotString = f"got: {got}\n" if got else ""
+    helpString = f"{help}\n" if help else ""
     raise ParseError(
-        f"{expectedString}{gotString}while parsing:\n{parseBuffer}\n{parseBuffer.generateArrowLine()}",
+        f"{helpString}{expectedString}{gotString}while parsing:\n{parseBuffer}\n{parseBuffer.generateArrowLine()}",
         parseBuffer,
     )
 
@@ -101,6 +102,7 @@ def parseMacro(parseBuffer, profile, subprofile=None):
     if not atArgumentDefinitionSpecifier:
         triggers = parseTriggers(parseBuffer)
         parseBuffer.skipTillData()
+        afterTrigger = parseBuffer.at()
         parsedTriggers = True
         atArgumentDefinitionSpecifier = bufferAtArgumentDefinitionSpecifier(parseBuffer)
     argumentDefinition = ZERO_ARGUMENT_DEFINITION
@@ -109,6 +111,14 @@ def parseMacro(parseBuffer, profile, subprofile=None):
         argumentDefinition = parseArgumentDefinition(parseBuffer)
         parseBuffer.skipTillData()
         parsedArgumentDefinition = True
+    if triggers == None and type(argumentDefinition) != MIDIMessageArgumentDefinition:
+        # triggerless wildcard macro used with non-MIDIMessageArgumentDefinition
+        parseBuffer.jump(afterTrigger)
+        generateParseError(
+            parseBuffer,
+            "MIDI-message argument definition",
+            help="Triggerless wildcard macros can only be used with a MIDI-message argument definition.",
+        )
     interpreter = None
     parsedInterpreter = False
     if parseBuffer.getCurrentChar() == "(":
@@ -476,7 +486,6 @@ def parseArgumentProcessor(parseBuffer, argumentFormats, allowArgumentSeperator=
             generateParseError(
                 parseBuffer,
                 f'one of {"|".join(argumentFormats.keys())} or {otherExpectedSpecifier}',
-                None,
             )
         argumentFormat = argumentFormats[argumentFormatString]
     parseBuffer.skipTillData()
