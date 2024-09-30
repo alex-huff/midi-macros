@@ -6,9 +6,11 @@ from parser.parse_buffer import ParseBuffer
 from parser.parse_error import ParseError
 from script.argument import *
 from macro.tree.macro_tree import MacroTree
+from macro.macro_error import MacroError
 from macro.macro_note import MacroNote
 from macro.macro_chord import MacroChord
 from macro.macro import Macro
+from script.script_error import ScriptError
 from script.script import *
 
 
@@ -72,7 +74,16 @@ def parseMacroFile(macroFile, source, profile, subprofile=None):
             return macroTree
         parseBuffer = ParseBuffer(lines, source)
         while not parseBuffer.atEndOfBuffer():
-            macro = parseMacro(parseBuffer, profile, subprofile)
+            beforeMacro = parseBuffer.at()
+            try:
+                macro = parseMacro(parseBuffer, profile, subprofile)
+            except (MacroError, ScriptError) as error:
+                parseBuffer.jump(beforeMacro)
+                error.message = (
+                    f"Failed to create macro starting at:\n{parseBuffer}\n{parseBuffer.generateArrowLine()}\n"
+                    + error.message
+                )
+                raise error
             logInfo(f"adding macro: {macro}")
             macroTree.addMacroToTree(macro)
             parseBuffer.skipTillData()
@@ -102,7 +113,6 @@ def parseMacro(parseBuffer, profile, subprofile=None):
     if not atArgumentDefinitionSpecifier:
         triggers = parseTriggers(parseBuffer)
         parseBuffer.skipTillData()
-        afterTrigger = parseBuffer.at()
         parsedTriggers = True
         atArgumentDefinitionSpecifier = bufferAtArgumentDefinitionSpecifier(parseBuffer)
     argumentDefinition = ZERO_ARGUMENT_DEFINITION
@@ -111,14 +121,6 @@ def parseMacro(parseBuffer, profile, subprofile=None):
         argumentDefinition = parseArgumentDefinition(parseBuffer)
         parseBuffer.skipTillData()
         parsedArgumentDefinition = True
-    if triggers == None and type(argumentDefinition) != MIDIMessageArgumentDefinition:
-        # triggerless wildcard macro used with non-MIDIMessageArgumentDefinition
-        parseBuffer.jump(afterTrigger)
-        generateParseError(
-            parseBuffer,
-            "MIDI-message argument definition",
-            help="Triggerless wildcard macros can only be used with a MIDI-message argument definition.",
-        )
     interpreter = None
     parsedInterpreter = False
     if parseBuffer.getCurrentChar() == "(":
@@ -179,7 +181,7 @@ def eatArrow(parseBuffer):
 
 
 def parseTriggers(parseBuffer):
-    if parseBuffer.getCurrentChar() == "*":  # triggerless wildcard
+    if parseBuffer.getCurrentChar() == "*":  # wildcard trigger
         parseBuffer.skip(1)
         return None
     triggers = []

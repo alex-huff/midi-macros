@@ -38,6 +38,7 @@ from config.mm_config import (
 from log.mm_logging import loggingContext, logInfo, logError, exceptionStr
 from locking.locking import clearLocks
 from script.script_error import ScriptError
+from macro.macro_error import MacroError
 
 
 def verifyDirectoryExists(path, name):
@@ -223,6 +224,12 @@ class MidiMacros:
         except ScriptError as scriptError:
             raise ConfigException(
                 f"invalid script configuration: {scriptError.message}",
+                profile,
+                subprofile,
+            )
+        except MacroError as macroError:
+            raise ConfigException(
+                f"invalid macro configuration: {macroError.message}",
                 profile,
                 subprofile,
             )
