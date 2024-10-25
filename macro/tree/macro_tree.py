@@ -87,6 +87,8 @@ class MacroTree:
                         )
 
     def shutdown(self):
+        for script in self.triggerlessScripts:
+            script.shutdown()
         self.recurseMacroTreeAndShutdownScripts(self.root)
 
     def recurseMacroTreeAndShutdownScripts(self, currentNode):

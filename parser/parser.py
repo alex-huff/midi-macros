@@ -181,7 +181,7 @@ def eatArrow(parseBuffer):
 
 
 def parseTriggers(parseBuffer):
-    if parseBuffer.getCurrentChar() == "*":  # wildcard trigger
+    if parseBuffer.getCurrentChar() == "*": # wildcard trigger
         parseBuffer.skip(1)
         return None
     triggers = []
