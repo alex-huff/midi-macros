@@ -39,7 +39,7 @@ class MacroTree:
     def executeMacros(self, playedNotes, midiMessage=None):
         if self.triggerlessScripts and midiMessage:
             for script in self.triggerlessScripts:
-                script.queueIfArgumentsMatch((midiMessage,))
+                script.queueIfArgumentsMatch(playedNotes[:], (midiMessage,))
         if not self.root.shouldProcessNumActions(
             len(playedNotes) + (1 if midiMessage else 0)
         ):
@@ -52,7 +52,7 @@ class MacroTree:
             return
         arguments = (midiMessage,) if midiMessage else playedNotes[position:]
         for script in currentNode.getScripts():
-            script.queueIfArgumentsMatch(arguments)
+            script.queueIfArgumentsMatch(playedNotes[:position], arguments)
 
     def recurseMacroTreeAndExecuteMacros(
         self, currentNode, position, playedNotes, midiMessage=None

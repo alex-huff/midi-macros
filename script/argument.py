@@ -16,8 +16,8 @@ class ArgumentFormat:
         self.convertor = convertor
         self.name = name
 
-    def convert(self, playedNote):
-        return self.convertor(playedNote)
+    def convert(self, argument):
+        return self.convertor(argument)
 
     def getName(self):
         return self.name
@@ -75,7 +75,7 @@ MIDI_MESSAGE_FORMAT_CC_VALUE_BOOL = ArgumentFormat(
     "CC_VALUE_BOOL",
 )
 
-FORMAT_NONE = ArgumentFormat(lambda _: "", "NONE")
+FORMAT_NONE = ArgumentFormat(lambda a: "", "NONE")
 
 
 class ArgumentNumberRange:
@@ -124,7 +124,7 @@ class ArgumentDefinition(ABC):
         self.matchPredicates = matchPredicates
         self.shouldProcessArguments = shouldProcessArguments
         if isinstance(self.argumentFormat, ArgumentFormat):
-            self.argumentProcessor = lambda a: str(self.argumentFormat.convert(a))
+            self.argumentProcessor = lambda _, a: str(self.argumentFormat.convert(a))
         else:
             self.argumentProcessor = self.processFStringArgumentFormat
 
@@ -152,40 +152,40 @@ class ArgumentDefinition(ABC):
     def testNumArguments(self, numArguments):
         return self.argumentNumberRange.test(numArguments)
 
-    def argumentsMatch(self, arguments):
+    def argumentsMatch(self, trigger, arguments):
         return (
             self.testNumArguments(len(arguments))
             and self.verifyArgumentTypes(arguments)
-            and self.testMatchPredicates(arguments)
+            and self.testMatchPredicates(trigger, arguments)
         )
 
     def verifyArgumentTypes(self, arguments):
         return all(isinstance(argument, self.argumentType) for argument in arguments)
 
-    def testMatchPredicates(self, arguments):
+    def testMatchPredicates(self, trigger, arguments):
         matchPredicate = None
         try:
             for matchPredicate in self.matchPredicates:
-                if not self.testMatchPredicate(matchPredicate, arguments):
+                if not self.testMatchPredicate(matchPredicate, trigger, arguments):
                     return False
             return True
         except Exception:
             logError(f"failed to evaluate match predicate: {matchPredicate}")
             return False
 
-    def processArguments(self, arguments):
+    def processArguments(self, trigger, arguments):
         if not self.shouldProcessArguments:
             raise UnsupportedOperation
         return self.argumentSeperator.join(
-            self.argumentProcessor(argument) for argument in arguments
+            self.argumentProcessor(trigger, argument) for argument in arguments
         )
 
     @abstractmethod
-    def processFStringArgumentFormat(self, argument):
+    def processFStringArgumentFormat(self, trigger, argument):
         pass
 
     @abstractmethod
-    def testMatchPredicate(self, matchPredicate, arguments):
+    def testMatchPredicate(self, matchPredicate, trigger, arguments):
         pass
 
     @abstractmethod
@@ -224,10 +224,10 @@ class ZeroArgumentDefinition(ArgumentDefinition):
     def getIdentifier(self):
         return "0"
 
-    def testMatchPredicate(self, matchPredicate, arguments):
+    def testMatchPredicate(self, matchPredicate, trigger, arguments):
         raise UnsupportedOperation
 
-    def processFStringArgumentFormat(self, argument):
+    def processFStringArgumentFormat(self, trigger, argument):
         raise UnsupportedOperation
 
 
@@ -254,7 +254,8 @@ class PlayedNotesArgumentDefinition(ArgumentDefinition):
     def getIdentifier(self):
         return PLAYED_NOTES_ARGUMENT_DEFINITION_SPECIFIER
 
-    def testMatchPredicate(self, matchPredicate, arguments):
+    def testMatchPredicate(self, matchPredicate, trigger, arguments):
+        TRIGGER = trigger
         NOTES = arguments
         CHANNEL = {n.getChannel() for n in NOTES}
         CHANNEL = tuple(CHANNEL)[0] if len(CHANNEL) == 1 else CHANNEL
@@ -290,7 +291,8 @@ class PlayedNotesArgumentDefinition(ArgumentDefinition):
             return True
         return False
 
-    def processFStringArgumentFormat(self, playedNote):
+    def processFStringArgumentFormat(self, trigger, playedNote):
+        TRIGGER = trigger
         PLAYED_NOTE = playedNote
         MIDI = PLAYED_NOTE_FORMAT_MIDI.convert(playedNote)
         ASPN = PLAYED_NOTE_FORMAT_ASPN.convert(playedNote)
@@ -335,7 +337,8 @@ class MIDIMessageArgumentDefinition(ArgumentDefinition):
     def getIdentifier(self):
         return "MIDI"
 
-    def testMatchPredicate(self, matchPredicate, arguments):
+    def testMatchPredicate(self, matchPredicate, trigger, arguments):
+        TRIGGER = trigger
         MESSAGE = arguments[0]
         DATA_0 = MESSAGE.getData0()
         DATA_1 = MESSAGE.getData1()
@@ -358,7 +361,8 @@ class MIDIMessageArgumentDefinition(ArgumentDefinition):
             return True
         return False
 
-    def processFStringArgumentFormat(self, message):
+    def processFStringArgumentFormat(self, trigger, message):
+        TRIGGER = trigger
         MESSAGE = message
         MESSAGE_BYTES = MIDI_MESSAGE_FORMAT_MESSAGE_BYTES.convert(message)
         MESSAGE_BYTES_HEX = MIDI_MESSAGE_FORMAT_MESSAGE_BYTES_HEX.convert(message)

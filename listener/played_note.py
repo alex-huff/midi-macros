@@ -1,3 +1,6 @@
+from aspn.aspn import midiNoteToASPN
+
+
 class PlayedNote:
     def __init__(self, note, channel, velocity, time):
         self.note = note
@@ -7,6 +10,9 @@ class PlayedNote:
 
     def getNote(self):
         return self.note
+
+    def getASPN(self):
+        return midiNoteToASPN(self.note, unicode=False)
 
     def getChannel(self):
         return self.channel

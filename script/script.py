@@ -254,7 +254,8 @@ class Script:
             raise ValueError
         return formattedArguments
 
-    def invoke(self, arguments):
+    def invoke(self, context):
+        trigger, arguments = context
         if (
             not self.argumentDefinition.getShouldProcessArguments()
             and self.invocationFormat == None
@@ -264,7 +265,7 @@ class Script:
             return
         try:
             processedArguments = self.formatArguments(
-                self.argumentDefinition.processArguments(arguments)
+                self.argumentDefinition.processArguments(trigger, arguments)
                 if self.argumentDefinition.getShouldProcessArguments()
                 else ""
             )
@@ -289,14 +290,14 @@ class Script:
             else:
                 self.runProcess(self.script, processedArguments)
 
-    def queueIfArgumentsMatch(self, arguments):
-        if not self.argumentDefinition.argumentsMatch(arguments):
+    def queueIfArgumentsMatch(self, trigger, arguments):
+        if not self.argumentDefinition.argumentsMatch(trigger, arguments):
             return
-        self.queue(arguments)
+        self.queue(trigger, arguments)
 
-    def queue(self, arguments):
+    def queue(self, trigger, arguments):
         self.lazyInitialize()
-        self.invocationQueue.put(arguments)
+        self.invocationQueue.put((trigger, arguments))
 
     def __str__(self):
         argumentDefinitionSpecification = f"{self.argumentDefinition} "
