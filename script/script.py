@@ -15,12 +15,14 @@ DEBOUNCE = 2**1
 SCRIPT_PATH_AS_ENV_VAR = 2**2
 BACKGROUND = 2**3
 KILL = 2**4
+PERMIT_EXTRA = 2**5
 
 BLOCK_KEY = "BLOCK"
 DEBOUNCE_KEY = "DEBOUNCE"
 SCRIPT_PATH_AS_ENV_VAR_KEY = "SCRIPT_PATH_AS_ENV_VAR"
 BACKGROUND_KEY = "BACKGROUND"
 KILL_KEY = "KILL"
+PERMIT_EXTRA_KEY = "PERMIT_EXTRA"
 
 FLAGS = {
     BLOCK_KEY: BLOCK,
@@ -28,6 +30,7 @@ FLAGS = {
     SCRIPT_PATH_AS_ENV_VAR_KEY: SCRIPT_PATH_AS_ENV_VAR,
     BACKGROUND_KEY: BACKGROUND,
     KILL_KEY: KILL,
+    PERMIT_EXTRA_KEY: PERMIT_EXTRA,
 }
 LOCK = "LOCK"
 INVOCATION_FORMAT = "INVOCATION_FORMAT"
@@ -100,6 +103,11 @@ class Script:
             if not self.flags & BACKGROUND:
                 raise ScriptError(
                     f"{KILL_KEY} can only be used on {BACKGROUND_KEY} scripts"
+                )
+        if self.flags & PERMIT_EXTRA:
+            if type(self.argumentDefinition) == MIDIMessageArgumentDefinition:
+                raise ScriptError(
+                    f"{PERMIT_EXTRA_KEY} cannot be used with MIDI argument definitions"
                 )
 
     def lazyInitialize(self):
@@ -290,8 +298,11 @@ class Script:
             else:
                 self.runProcess(self.script, processedArguments)
 
-    def queueIfArgumentsMatch(self, trigger, arguments):
+    def queueIfShould(self, trigger, arguments, hadExtraMessageSincePress):
         if not self.argumentDefinition.argumentsMatch(trigger, arguments):
+            return
+        hasMIDIArgumentDefinition = type(self.argumentDefinition) == MIDIMessageArgumentDefinition
+        if not hasMIDIArgumentDefinition and hadExtraMessageSincePress and not self.flags & PERMIT_EXTRA:
             return
         self.queue(trigger, arguments)
 

@@ -46,7 +46,7 @@ class MidiListener:
         self.lastChangeWasAdd = False
         self.pedalDown = [False for _ in range(16)]
         self.virtualPedalDown = False
-        self.hadIgnoredMessageSincePress = False
+        self.hadExtraMessageSincePress = False
         self.enabled = True
         self.portName = None
         self.enableTrigger = self.config.get(ENABLE_TRIGGER)
@@ -177,8 +177,7 @@ class MidiListener:
         }
         if len(toRelease) > 0:
             if self.lastChangeWasAdd:
-                if not self.hadIgnoredMessageSincePress:
-                    self.executeMacros()
+                self.executeMacros()
                 self.lastChangeWasAdd = False
             self.pressed = [
                 pn
@@ -202,7 +201,7 @@ class MidiListener:
             and (statusType != CONTROL_CHANGE or data_1 != SUSTAIN_PEDAL)
         )
         if shouldIgnore:
-            self.hadIgnoredMessageSincePress = True
+            self.hadExtraMessageSincePress = True
             return
         wasSustainingOnChannel = self.pedalDown[channel] or self.virtualPedalDown
         if statusType == CONTROL_CHANGE:
@@ -220,13 +219,13 @@ class MidiListener:
             if nc in self.queuedReleases:
                 self.queuedReleases.remove(nc)
             self.pressed.append(PlayedNote(note, channel, velocity, time.time_ns()))
-            self.hadIgnoredMessageSincePress = False
+            self.hadExtraMessageSincePress = False
         else:
             if isSustainingOnChannel:
                 self.queuedReleases.add(nc)
                 return
             else:
-                if self.lastChangeWasAdd and not self.hadIgnoredMessageSincePress:
+                if self.lastChangeWasAdd:
                     self.executeMacros()
                 self.pressed = [
                     pn
@@ -265,10 +264,10 @@ class MidiListener:
             logInfo(
                 f"evaluating pressed keys: {' '.join(f'{playedNote.getChannel()}:{aspn.midiNoteToASPN(playedNote.getNote())}' for playedNote in self.pressed) if self.pressed else None}{midiMessageSpecifier}"
             )
-            self.globalMacroTree.executeMacros(self.pressed, midiMessage)
+            self.globalMacroTree.executeMacros(self.pressed, self.hadExtraMessageSincePress, midiMessage)
             if not self.subprofileHolder:
                 return
-            self.subprofileHolder.executeMacros(self.pressed, midiMessage)
+            self.subprofileHolder.executeMacros(self.pressed, self.hadExtraMessageSincePress, midiMessage)
 
     def run(self):
         with loggingContext(self.profile):

@@ -36,29 +36,29 @@ class MacroTree:
                 currentNode = currentNode.setBranch(trigger, MacroTreeNode())
         currentNode.addScript(macro.getScript())
 
-    def executeMacros(self, playedNotes, midiMessage=None):
+    def executeMacros(self, playedNotes, hadExtraMessageSincePress, midiMessage=None):
         if self.triggerlessScripts and midiMessage:
             for script in self.triggerlessScripts:
-                script.queueIfArgumentsMatch(playedNotes[:], (midiMessage,))
+                script.queueIfShould(playedNotes[:], (midiMessage,), hadExtraMessageSincePress)
         if not self.root.shouldProcessNumActions(
             len(playedNotes) + (1 if midiMessage else 0)
         ):
             return
-        self.recurseMacroTreeAndExecuteMacros(self.root, 0, playedNotes, midiMessage)
+        self.recurseMacroTreeAndExecuteMacros(self.root, 0, playedNotes, hadExtraMessageSincePress, midiMessage)
 
-    def executeScripts(self, currentNode, playedNotes, position, midiMessage=None):
+    def executeScripts(self, currentNode, position, playedNotes, hadExtraMessageSincePress, midiMessage=None):
         keysLeftToProcess = len(playedNotes) - position
         if not currentNode.getScripts() or (midiMessage and keysLeftToProcess > 0):
             return
         arguments = (midiMessage,) if midiMessage else playedNotes[position:]
         for script in currentNode.getScripts():
-            script.queueIfArgumentsMatch(playedNotes[:position], arguments)
+            script.queueIfShould(playedNotes[:position], arguments, hadExtraMessageSincePress)
 
     def recurseMacroTreeAndExecuteMacros(
-        self, currentNode, position, playedNotes, midiMessage=None
+        self, currentNode, position, playedNotes, hadExtraMessageSincePress, midiMessage=None
     ):
         addedActions = 1 if midiMessage else 0
-        self.executeScripts(currentNode, playedNotes, position, midiMessage)
+        self.executeScripts(currentNode, position, playedNotes, hadExtraMessageSincePress, midiMessage)
         keysLeftToProcess = len(playedNotes) - position
         if not keysLeftToProcess:
             return
@@ -74,7 +74,7 @@ class MacroTree:
                         continue
                     if testChordWithMacroChord(playedNotes, position, trigger):
                         self.recurseMacroTreeAndExecuteMacros(
-                            nextNode, position + chordLength, playedNotes, midiMessage
+                            nextNode, position + chordLength, playedNotes, hadExtraMessageSincePress, midiMessage
                         )
                 case MacroNote():
                     if not nextNode.shouldProcessNumActions(
@@ -83,7 +83,7 @@ class MacroTree:
                         continue
                     if testNoteWithMacroNote(playedNotes, position, trigger):
                         self.recurseMacroTreeAndExecuteMacros(
-                            nextNode, position + 1, playedNotes, midiMessage
+                            nextNode, position + 1, playedNotes, hadExtraMessageSincePress, midiMessage
                         )
 
     def shutdown(self):
