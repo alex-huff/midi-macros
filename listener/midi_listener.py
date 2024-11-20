@@ -46,6 +46,7 @@ class MidiListener:
         self.lastChangeWasAdd = False
         self.pedalDown = [False for _ in range(16)]
         self.virtualPedalDown = False
+        self.hadIgnoredMessageSincePress = False
         self.enabled = True
         self.portName = None
         self.enableTrigger = self.config.get(ENABLE_TRIGGER)
@@ -176,7 +177,8 @@ class MidiListener:
         }
         if len(toRelease) > 0:
             if self.lastChangeWasAdd:
-                self.executeMacros()
+                if not self.hadIgnoredMessageSincePress:
+                    self.executeMacros()
                 self.lastChangeWasAdd = False
             self.pressed = [
                 pn
@@ -194,13 +196,13 @@ class MidiListener:
         channel = message.getChannel()
         data_1 = message.getData1()
         data_2 = message.getData2()
-        if data_2 == None:
-            return
-        if (
+        shouldIgnore = (
             statusType != NOTE_ON
             and statusType != NOTE_OFF
             and (statusType != CONTROL_CHANGE or data_1 != SUSTAIN_PEDAL)
-        ):
+        )
+        if shouldIgnore:
+            self.hadIgnoredMessageSincePress = True
             return
         wasSustainingOnChannel = self.pedalDown[channel] or self.virtualPedalDown
         if statusType == CONTROL_CHANGE:
@@ -218,12 +220,13 @@ class MidiListener:
             if nc in self.queuedReleases:
                 self.queuedReleases.remove(nc)
             self.pressed.append(PlayedNote(note, channel, velocity, time.time_ns()))
+            self.hadIgnoredMessageSincePress = False
         else:
             if isSustainingOnChannel:
                 self.queuedReleases.add(nc)
                 return
             else:
-                if self.lastChangeWasAdd:
+                if self.lastChangeWasAdd and not self.hadIgnoredMessageSincePress:
                     self.executeMacros()
                 self.pressed = [
                     pn
