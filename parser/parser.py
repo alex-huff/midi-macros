@@ -328,6 +328,7 @@ def parseMatchPredicate(parseBuffer):
         generateParseError(parseBuffer, "match predicate", parseBuffer.getCurrentChar())
     parseBuffer.skip(1)
     startPosition = parseBuffer.at()
+    parseBuffer.skipTillData(skipComments=False)
     numUnmatchedOpenLeftCurlyBraces = 0
     while numUnmatchedOpenLeftCurlyBraces > 0 or parseBuffer.getCurrentChar() != "}":
         match (parseBuffer.getCurrentChar()):
@@ -341,6 +342,7 @@ def parseMatchPredicate(parseBuffer):
         if numUnmatchedOpenLeftCurlyBraces < 0:
             generateParseError(parseBuffer, None, "unmatched curly brace")
         parseBuffer.skip(1)
+        parseBuffer.skipTillData(skipComments=False)
     endPosition = parseBuffer.at()
     if startPosition == endPosition:
         generateParseError(parseBuffer, None, "empty match predicate")

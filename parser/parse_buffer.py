@@ -51,11 +51,12 @@ class ParseBuffer:
         ):
             self.skip(1)
 
-    def skipTillData(self):
-        self.skipComment()
+    def skipTillData(self, skipComments=True):
+        skip = self.skipComment if skipComments else self.eatWhitespace
+        skip()
         while self.atEndOfLine() and self.currentLineNumber < len(self.lines) - 1:
             self.newline()
-            self.skipComment()
+            skip()
 
     def jump(self, position):
         lineNumber, positionInLine = position
