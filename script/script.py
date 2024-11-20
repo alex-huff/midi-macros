@@ -269,9 +269,9 @@ class Script:
                 if self.argumentDefinition.getShouldProcessArguments()
                 else ""
             )
-        except Exception:
+        except Exception as exception:
             logError(
-                f"failed to process arguments with argument format: {self.argumentDefinition.getArgumentFormat()} and invocation format: {self.invocationFormat}"
+                f"failed to process arguments with argument format: {self.argumentDefinition.getArgumentFormat()} and invocation format: {self.invocationFormat}\nreason: {exception}"
             )
             return
         replaceString = self.argumentDefinition.getReplaceString()
