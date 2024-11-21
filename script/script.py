@@ -105,7 +105,7 @@ class Script:
                     f"{KILL_KEY} can only be used on {BACKGROUND_KEY} scripts"
                 )
         if self.flags & PERMIT_EXTRA:
-            if type(self.argumentDefinition) == MIDIMessageArgumentDefinition:
+            if isinstance(self.argumentDefinition, MIDIMessageArgumentDefinition):
                 raise ScriptError(
                     f"{PERMIT_EXTRA_KEY} cannot be used with MIDI argument definitions"
                 )
@@ -301,7 +301,7 @@ class Script:
     def queueIfShould(self, trigger, arguments, hadExtraMessageSincePress):
         if not self.argumentDefinition.argumentsMatch(trigger, arguments):
             return
-        hasMIDIArgumentDefinition = type(self.argumentDefinition) == MIDIMessageArgumentDefinition
+        hasMIDIArgumentDefinition = isinstance(self.argumentDefinition, MIDIMessageArgumentDefinition)
         if not hasMIDIArgumentDefinition and hadExtraMessageSincePress and not self.flags & PERMIT_EXTRA:
             return
         self.queue(trigger, arguments)
