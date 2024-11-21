@@ -201,7 +201,8 @@ class MidiListener:
             and (statusType != CONTROL_CHANGE or data_1 != SUSTAIN_PEDAL)
         )
         if shouldIgnore:
-            self.hadExtraMessageSincePress = True
+            if statusType not in (POLY_PRESSURE, CHANNEL_PRESSURE):
+                self.hadExtraMessageSincePress = True
             return
         wasSustainingOnChannel = self.pedalDown[channel] or self.virtualPedalDown
         if statusType == CONTROL_CHANGE:
