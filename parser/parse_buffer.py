@@ -52,6 +52,13 @@ class ParseBuffer:
         ):
             self.skip(1)
 
+    def multilineSkipTillChar(self, chars):
+        skip = lambda: self.skipTillChar(chars, terminateAtEndOfLine=True)
+        skip()
+        while self.atEndOfLine():
+            self.newline()
+            skip()
+
     def skipTillData(self, skipComments=True):
         skip = self.skipComment if skipComments else self.eatWhitespace
         skip()

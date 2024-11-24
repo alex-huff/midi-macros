@@ -438,8 +438,13 @@ def parseArgumentProcessor(parseBuffer, namedArgumentFormats, fStringArgumentFor
         if allowArgumentSeparator and parseBuffer.getCurrentChar() == "[":
             argumentSeparator = parseArgumentSeparator(parseBuffer)
             parsedArgumentSeparator = True
-        if bufferHasSubstring(parseBuffer, 'f"'):
-            return JoiningArgumentProcessor(argumentSeparator, fStringArgumentFormatType(parseFString(parseBuffer)))
+        atOpeningParen = parseBuffer.getCurrentChar() == "("
+        if bufferHasSubstring(parseBuffer, 'f"') or bufferHasSubstring(parseBuffer, "f'") or atOpeningParen:
+            if atOpeningParen:
+                fString = readParenthesisedStrings(parseBuffer, fStringsAllowed=True)
+            else:
+                fString = readFString(parseBuffer)
+            return JoiningArgumentProcessor(argumentSeparator, fStringArgumentFormatType(fString))
         else:
             namedArgumentFormatStringStart = parseBuffer.at()
             parseBuffer.skipTillChar(",)", terminateOnWhitespace=True, terminateAtEndOfLine=True)
@@ -457,7 +462,7 @@ def parseArgumentProcessor(parseBuffer, namedArgumentFormats, fStringArgumentFor
                     if allowArgumentSeparator and not parsedArgumentSeparator
                     else ""
                 )
-                otherExpectedSpecifier = f"f-string argument format{replaceStringExpectedSpecifier}{argumentSeparatorExpectedSpecifier}"
+                otherExpectedSpecifier = f"parenthesized? f-string argument format{replaceStringExpectedSpecifier}{argumentSeparatorExpectedSpecifier}"
                 parseBuffer.jump(namedArgumentFormatStringStart)
                 generateParseError(
                     parseBuffer,
@@ -474,11 +479,11 @@ def parseArgumentProcessor(parseBuffer, namedArgumentFormats, fStringArgumentFor
     parseBuffer.skip(1)
     parseBuffer.skipTillData()
     parsedReplaceString = False
-    if parseBuffer.getCurrentChar() == '"':
+    if parseBuffer.getCurrentChar() in "\"'":
         parsedReplaceString = True
         replacements = []
-        while parseBuffer.getCurrentChar() == '"':
-            replaceString = parseQuotedString(parseBuffer)
+        while parseBuffer.getCurrentChar() in "\"'":
+            replaceString = parsePythonStrings(parseBuffer)
             parseBuffer.eatWhitespace()
             eatArrow(parseBuffer)
             parseBuffer.eatWhitespace()
@@ -509,49 +514,14 @@ def parseArgumentProcessor(parseBuffer, namedArgumentFormats, fStringArgumentFor
     return argumentProcessor
 
 
-def parseQuotedString(parseBuffer, quoteChar='"'):
-    stringStart = parseBuffer.at()
-    rawString = readQuotedString(parseBuffer, quoteChar)
-    try:
-        return decodeCStyleEscapes(rawString)
-    except UnicodeDecodeError as ude:
-        parseBuffer.jump(stringStart)
-        raise ParseError(
-            f"failed to decode string: {rawString}, {ude.reason}", parseBuffer
-        )
-
-
-def readQuotedString(parseBuffer, quoteChar='"', returnString=True):
-    if parseBuffer.getCurrentChar() != quoteChar:
-        generateParseError(
-            parseBuffer, f"{quoteChar}-quoted string", parseBuffer.getCurrentChar()
-        )
-    parseBuffer.skip(1)
-    startPosition = parseBuffer.at()
-    escaping = False
-    while True:
-        if parseBuffer.getCurrentChar() == quoteChar and not escaping:
-            break
-        escaping = not escaping if parseBuffer.getCurrentChar() == "\\" else False
-        parseBuffer.skip(1)
-    endPosition = parseBuffer.at()
-    parseBuffer.skip(1)
-    if returnString:
-        return parseBuffer.stringFrom(startPosition, endPosition)
-
-
-def eatQuotedString(parseBuffer, quoteChar='"'):
-    return readQuotedString(parseBuffer, quoteChar, False)
-
-
 def parseArgumentSeparator(parseBuffer):
     if parseBuffer.getCurrentChar() != "[":
         generateParseError(
             parseBuffer, "argument separator", parseBuffer.getCurrentChar()
         )
     parseBuffer.skip(1)
-    if parseBuffer.getCurrentChar() == '"':
-        separator = parseQuotedString(parseBuffer)
+    if parseBuffer.getCurrentChar() in "\"'":
+        separator = parsePythonStrings(parseBuffer)
         if not parseBuffer.getCurrentChar() == "]":
             generateParseError(parseBuffer, "]", parseBuffer.getCurrentChar())
     else:
@@ -572,9 +542,105 @@ def bufferHasSubstring(parseBuffer, substring):
     return True
 
 
-def eatPythonString(parseBuffer):
+def parseParenthesisedStrings(parseBuffer):
+    parenthesisedString = readParenthesisedStrings(parseBuffer)
+    try:
+        evaluatedString = eval(parenthesisedString)
+        assert isinstance(evaluatedString, str)
+        return evaluatedString
+    except Exception as exception:
+        parseBuffer.jump(stringStart)
+        raise ParseError(
+            f"failed to evaluate parenthesised string: {parenthesisedString}, {exception}", parseBuffer
+        )
+
+
+def readParenthesisedStrings(parseBuffer, fStringsAllowed=False, returnString=True):
+    def inspectPosition():
+        nonlocal atClosingParen, startsWithQuote, startsWithFString
+        atClosingParen = parseBuffer.getCurrentChar() == ")"
+        startsWithQuote = parseBuffer.getCurrentChar() in "\"'"
+        startsWithFString = bufferHasSubstring(parseBuffer, 'f"') or bufferHasSubstring(parseBuffer, "f'")
+
+    atClosingParen = startsWithQuote = startsWithFString = False
+    startPosition = parseBuffer.at()
+    if not parseBuffer.getCurrentChar() == "(":
+        generateParseError(parseBuffer, "parenthesised strings", parseBuffer.getCurrentChar())
+    startPosition = parseBuffer.at()
+    parseBuffer.skip(1)
+    parseBuffer.skipTillData(skipComments=False)
+    inspectPosition()
+    while not atClosingParen:
+        if not startsWithQuote and not (fStringsAllowed and startsWithFString):
+            fStringExpectedSpecifier = " or f-string" if fStringsAllowed else ""
+            generateParseError(parseBuffer, f"python string{fStringExpectedSpecifier} or )", parseBuffer.getCurrentChar())
+        eatPythonStrings(parseBuffer, fStringsAllowed=fStringsAllowed)
+        parseBuffer.skipTillData(skipComments=False)
+        inspectPosition()
+    parseBuffer.skip(1)
+    endPosition = parseBuffer.at()
+    if returnString:
+        return parseBuffer.stringFrom(startPosition, endPosition)
+
+
+def eatParenthesisedStrings(parseBuffer, fStringsAllowed=False):
+    readParenthisedStrings(parseBuffer, fStringsAllowed=fStringsAllowed, returnString=False)
+
+
+def parsePythonStrings(parseBuffer):
+    return parsePythonString(parseBuffer, combineConsecutive=True)
+
+
+def readPythonStrings(parseBuffer, fStringsAllowed=False, returnString=True):
+    def inspectPosition():
+        nonlocal atEndOfLine, startsWithQuote, startsWithFString
+        atEndOfLine = parseBuffer.atEndOfLine()
+        startsWithQuote = parseBuffer.getCurrentChar() in "\"'" if not atEndOfLine else False
+        startsWithFString = bufferHasSubstring(parseBuffer, 'f"') or bufferHasSubstring(parseBuffer, "f'")
+
+    atEndOfLine = startsWithQuote = startsWithFString = False
+    inspectPosition()
+    if not startsWithQuote and not (fStringsAllowed and startsWithFString):
+        fStringExpectedSpecifier = " or f-string" if fStringsAllowed else ""
+        generateParseError(parseBuffer, f"python string{fStringExpectedSpecifier}", parseBuffer.getCurrentChar())
+    startPosition = parseBuffer.at()
+    while not atEndOfLine:
+        if fStringsAllowed and startsWithFString:
+            parseBuffer.skip(1)
+        elif not startsWithQuote:
+            break
+        eatPythonString(parseBuffer)
+        inspectPosition()
+    endPosition = parseBuffer.at()
+    if returnString:
+        return parseBuffer.stringFrom(startPosition, endPosition)
+
+
+def eatPythonStrings(parseBuffer, fStringsAllowed=False):
+    readPythonStrings(parseBuffer, fStringsAllowed=fStringsAllowed, returnString=False)
+
+
+def parsePythonString(parseBuffer, combineConsecutive=False):
+    stringStart = parseBuffer.at()
+    if combineConsecutive:
+        pythonString = readPythonStrings(parseBuffer)
+    else:
+        pythonString = readPythonString(parseBuffer)
+    try:
+        evaluatedString = eval(pythonString)
+        assert isinstance(evaluatedString, str)
+        return evaluatedString
+    except Exception as exception:
+        parseBuffer.jump(stringStart)
+        raise ParseError(
+            f"failed to evaluate python string: {pythonString}, {exception}", parseBuffer
+        )
+
+
+def readPythonString(parseBuffer, returnString=True):
     if parseBuffer.getCurrentChar() not in "\"'":
         generateParseError(parseBuffer, "python string", parseBuffer.getCurrentChar())
+    startPosition = parseBuffer.at()
     quoteChar = parseBuffer.getCurrentChar()
     isDocstring = bufferHasSubstring(parseBuffer, quoteChar * 3)
     parseBuffer.skip(3 if isDocstring else 1)
@@ -596,39 +662,38 @@ def eatPythonString(parseBuffer):
         escaping = not escaping if parseBuffer.getCurrentChar() == "\\" else False
         parseBuffer.skip(1)
     parseBuffer.skip(1)
+    endPosition = parseBuffer.at()
+    if returnString:
+        return parseBuffer.stringFrom(startPosition, endPosition)
 
 
-def decodeCStyleEscapes(string):
-    return string.encode("latin1", "backslashreplace").decode("unicode-escape")
+def eatPythonString(parseBuffer):
+    readPythonString(parseBuffer, returnString=False)
 
 
-def parseFString(parseBuffer):
-    if not bufferHasSubstring(parseBuffer, 'f"'):
+def readFString(parseBuffer):
+    if not (bufferHasSubstring(parseBuffer, 'f"') or bufferHasSubstring(parseBuffer, "f'")):
         generateParseError(
             parseBuffer,
             "f-string",
             parseBuffer.getCurrentChar(),
         )
-    fStringStart = parseBuffer.at()
-    parseBuffer.skip(1)
-    eatQuotedString(parseBuffer)
-    return parseBuffer.stringFrom(fStringStart, parseBuffer.at())
+    return readPythonStrings(parseBuffer, fStringsAllowed=True)
 
 
 def parseInterpreter(parseBuffer):
     if not parseBuffer.getCurrentChar() == "(":
         generateParseError(parseBuffer, "interpreter", parseBuffer.getCurrentChar())
+    outerStart = parseBuffer.at()
     parseBuffer.skip(1)
-    startPosition = parseBuffer.at()
-    parseBuffer.eatWhitespace()
-    if parseBuffer.getCurrentChar() == '"':
-        interpreter = parseQuotedString(parseBuffer)
-        parseBuffer.eatWhitespace()
-        if not parseBuffer.getCurrentChar() == ")":
-            generateParseError(parseBuffer, ")", parseBuffer.getCurrentChar())
+    innerStart = parseBuffer.at()
+    parseBuffer.skipTillData(skipComments=False)
+    if parseBuffer.getCurrentChar() in "\"'":
+        parseBuffer.jump(outerStart)
+        return parseParenthesisedStrings(parseBuffer)
     else:
-        parseBuffer.skipTillChar(")")
-        interpreter = parseBuffer.stringFrom(startPosition, parseBuffer.at())
+        parseBuffer.multilineSkipTillChar(")")
+        interpreter = parseBuffer.stringFrom(innerStart, parseBuffer.at())
     parseBuffer.skip(1)
     return interpreter
 
@@ -658,16 +723,28 @@ def parseScriptFlags(parseBuffer):
         if isKeyValueFlag:
             parseBuffer.skip(1)
             parseBuffer.eatWhitespace()
+            atOpeningParen = parseBuffer.getCurrentChar() == "("
             match (KEY_VALUE_FLAGS[flag]):
                 case FlagType.STRING_TYPE:
-                    if parseBuffer.getCurrentChar() == '"':
-                        value = parseQuotedString(parseBuffer)
+                    if atOpeningParen:
+                        value = parseParenthesisedStrings(parseBuffer)
+                    elif parseBuffer.getCurrentChar() in "\"'":
+                        value = parsePythonStrings(parseBuffer)
                     else:
                         valueStart = parseBuffer.at()
                         parseBuffer.skipTillChar("|]", terminateOnWhitespace=True)
                         value = parseBuffer.stringFrom(valueStart, parseBuffer.at())
                 case FlagType.FSTRING_TYPE:
-                    value = parseFString(parseBuffer)
+                    if not (bufferHasSubstring(parseBuffer, 'f"') or bufferHasSubstring(parseBuffer, "f'") or atOpeningParen):
+                        generateParseError(
+                            parseBuffer,
+                            f"parenthesized? f-string value for {flag}",
+                            parseBuffer.getCurrentChar(),
+                        )
+                    if atOpeningParen:
+                        value = readParenthesisedStrings(parseBuffer, fStringsAllowed=True)
+                    else:
+                        value = readFString(parseBuffer)
             keyValueFlags[flag] = value
             parseBuffer.eatWhitespace()
             parsedKeyValue = True

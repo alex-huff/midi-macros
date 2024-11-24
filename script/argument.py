@@ -235,7 +235,7 @@ class JoiningArgumentProcessor(ArgumentProcessor):
 
     def __str__(self):
         argumentSeparatorSpecifier = (
-            f'["{self.argumentSeparator}"]' if self.argumentSeparator not in (None, " ") else ""
+            f'[{repr(self.argumentSeparator)}]' if self.argumentSeparator not in (None, " ") else ""
         )
         return f"{argumentSeparatorSpecifier}{self.argumentFormat}"
 
@@ -253,7 +253,7 @@ class ScriptPreprocessor(ArgumentProcessor):
 
     def __str__(self):
         return ",".join(
-            f'"{replaceString}"→{argumentProcessor}' for replaceString, argumentProcessor in self.replacements
+            f'{repr(replaceString)}→{argumentProcessor}' for replaceString, argumentProcessor in self.replacements
         )
 
 

@@ -68,7 +68,7 @@ class MidiMacros:
             self.configFilePath = os.path.join(self.configDirPath, "midi-macros.toml")
             if not os.path.exists(self.configFilePath):
                 logInfo(
-                    f"Config file {self.configFilePath} does not exist, creating it now"
+                    f"config file {self.configFilePath} does not exist, creating it now"
                 )
                 open(self.configFilePath, "a").close()
         self.initConfig()
