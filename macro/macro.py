@@ -8,7 +8,7 @@ class Macro:
         self.script = script
         if (
             self.triggers == None
-            and type(self.script.argumentDefinition) != MIDIMessageArgumentDefinition
+            and not isinstance(self.script.argumentDefinition, MIDIMessageArgumentDefinition)
         ):
             # Wildcard trigger macro used with non-MIDIMessageArgumentDefinition
             raise MacroError(
@@ -22,4 +22,4 @@ class Macro:
         return self.script
 
     def __str__(self):
-        return f'{"+".join(str(t) for t in self.triggers) if self.triggers else "*"} {self.script}'
+        return f'{"+".join(str(t) for t in self.triggers) if self.triggers != None else "*"} {self.script}'

@@ -18,35 +18,41 @@ BASE_PITCH_REGEX = re.compile(r"[A-Ga-g]")
 ARROW_START_CHARS = "→-"
 MODIFIERS = "#♯b♭𝄪𝄫"
 INDENT = "    "
-PLAYED_NOTE_ARGUMENT_FORMATS = {
-    "MIDI": PLAYED_NOTE_FORMAT_MIDI,
-    "ASPN": PLAYED_NOTE_FORMAT_ASPN,
-    "ASPN_UNICODE": PLAYED_NOTE_FORMAT_ASPN_UNICODE,
-    "PIANO": PLAYED_NOTE_FORMAT_PIANO,
-    "VELOCITY": PLAYED_NOTE_FORMAT_VELOCITY,
-    "TIME": PLAYED_NOTE_FORMAT_TIME,
-    "CHANNEL": PLAYED_NOTE_FORMAT_CHANNEL,
-    "NONE": FORMAT_NONE,
+PLAYED_NOTE_NAMED_ARGUMENT_FORMATS = {
+    argumentFormat.getName(): argumentFormat for argumentFormat in (
+        PLAYED_NOTE_FORMAT_MIDI,
+        PLAYED_NOTE_FORMAT_ASPN,
+        PLAYED_NOTE_FORMAT_ASPN_UNICODE,
+        PLAYED_NOTE_FORMAT_PIANO,
+        PLAYED_NOTE_FORMAT_VELOCITY,
+        PLAYED_NOTE_FORMAT_TIME,
+        PLAYED_NOTE_FORMAT_CHANNEL,
+        FORMAT_NONE
+    )
 }
-MIDI_ARGUMENT_FORMATS = {
-    "MESSAGE_BYTES": MIDI_MESSAGE_FORMAT_MESSAGE_BYTES,
-    "MESSAGE_BYTES_HEX": MIDI_MESSAGE_FORMAT_MESSAGE_BYTES_HEX,
-    "DATA_0": MIDI_MESSAGE_FORMAT_DATA_0,
-    "DATA_1": MIDI_MESSAGE_FORMAT_DATA_1,
-    "DATA_2": MIDI_MESSAGE_FORMAT_DATA_2,
-    "STATUS": MIDI_MESSAGE_FORMAT_STATUS,
-    "CHANNEL": MIDI_MESSAGE_FORMAT_CHANNEL,
-    "TIME": MIDI_MESSAGE_FORMAT_TIME,
-    "STATUS_HEX": MIDI_MESSAGE_FORMAT_STATUS_HEX,
-    "CHANNEL_HEX": MIDI_MESSAGE_FORMAT_CHANNEL_HEX,
-    "DATA_0_HEX": MIDI_MESSAGE_FORMAT_DATA_0_HEX,
-    "DATA_1_HEX": MIDI_MESSAGE_FORMAT_DATA_1_HEX,
-    "DATA_2_HEX": MIDI_MESSAGE_FORMAT_DATA_2_HEX,
-    "CC_VALUE": MIDI_MESSAGE_FORMAT_CC_VALUE,
-    "CC_VALUE_PERCENT": MIDI_MESSAGE_FORMAT_CC_VALUE_PERCENT,
-    "CC_VALUE_BOOL": MIDI_MESSAGE_FORMAT_CC_VALUE_BOOL,
-    "NONE": FORMAT_NONE,
+MIDI_NAMED_ARGUMENT_FORMATS = {
+    argumentFormat.getName(): argumentFormat for argumentFormat in (
+        MIDI_MESSAGE_FORMAT_MESSAGE_BYTES,
+        MIDI_MESSAGE_FORMAT_MESSAGE_BYTES_HEX,
+        MIDI_MESSAGE_FORMAT_DATA_0,
+        MIDI_MESSAGE_FORMAT_DATA_1,
+        MIDI_MESSAGE_FORMAT_DATA_2,
+        MIDI_MESSAGE_FORMAT_STATUS,
+        MIDI_MESSAGE_FORMAT_CHANNEL,
+        MIDI_MESSAGE_FORMAT_TIME,
+        MIDI_MESSAGE_FORMAT_STATUS_HEX,
+        MIDI_MESSAGE_FORMAT_CHANNEL_HEX,
+        MIDI_MESSAGE_FORMAT_DATA_0_HEX,
+        MIDI_MESSAGE_FORMAT_DATA_1_HEX,
+        MIDI_MESSAGE_FORMAT_DATA_2_HEX,
+        MIDI_MESSAGE_FORMAT_CC_VALUE_PERCENT,
+        MIDI_MESSAGE_FORMAT_CC_VALUE_BOOL,
+        FORMAT_NONE
+    )
 }
+MIDI_NAMED_ARGUMENT_FORMATS["CC_VALUE"] = MIDI_MESSAGE_FORMAT_CC_VALUE
+PLAYED_NOTE_ARGUMENT_FORMATS = (PLAYED_NOTE_NAMED_ARGUMENT_FORMATS, NotesFStringArgumentFormat)
+MIDI_ARGUMENT_FORMATS = (MIDI_NAMED_ARGUMENT_FORMATS, MIDIFStringArgumentFormat)
 
 
 def generateParseError(parseBuffer, expected, got=None, help=None):
@@ -69,7 +75,7 @@ def generateInvalidMIDIError(parseBuffer, note):
 def parseMacroFile(macroFile, source, profile, subprofile=None):
     with loggingContext(profile, subprofile):
         macroTree = MacroTree()
-        lines = [line[:-1] for line in macroFile.readlines()]
+        lines = [line.rstrip("\n") for line in macroFile.readlines()]
         if not lines:
             return macroTree
         parseBuffer = ParseBuffer(lines, source)
@@ -338,6 +344,7 @@ def parseMatchPredicate(parseBuffer):
                 numUnmatchedOpenLeftCurlyBraces -= 1
             case '"' | "'":
                 eatPythonString(parseBuffer)
+                parseBuffer.skipTillData(skipComments=False)
                 continue
         if numUnmatchedOpenLeftCurlyBraces < 0:
             generateParseError(parseBuffer, None, "unmatched curly brace")
@@ -373,35 +380,16 @@ def parseArgumentDefinition(parseBuffer):
     matchPredicates = []
     if parseBuffer.getCurrentChar() == "{":
         matchPredicates = parseMatchPredicates(parseBuffer)
+    argumentProcessor = None
     if parseBuffer.getCurrentChar() == "(":
-        argumentFormat, replaceString, argumentSeperator = parseArgumentProcessor(
+        argumentProcessor = parseArgumentProcessor(
             parseBuffer,
-            (
-                PLAYED_NOTE_ARGUMENT_FORMATS
-                if isPlayedNotesArgumentDefinition
-                else MIDI_ARGUMENT_FORMATS
-            ),
-            allowArgumentSeperator=isPlayedNotesArgumentDefinition,
+            *(PLAYED_NOTE_ARGUMENT_FORMATS if isPlayedNotesArgumentDefinition else MIDI_ARGUMENT_FORMATS),
+            allowArgumentSeparator=isPlayedNotesArgumentDefinition,
         )
-        if isPlayedNotesArgumentDefinition:
-            return PlayedNotesArgumentDefinition(
-                argumentNumberRange,
-                matchPredicates,
-                argumentFormat,
-                replaceString,
-                argumentSeperator,
-            )
-        return MIDIMessageArgumentDefinition(
-            matchPredicates, argumentFormat, replaceString
-        )
-    else:
-        if isPlayedNotesArgumentDefinition:
-            return PlayedNotesArgumentDefinition(
-                argumentNumberRange, matchPredicates, shouldProcessArguments=False
-            )
-        return MIDIMessageArgumentDefinition(
-            matchPredicates, shouldProcessArguments=False
-        )
+    if isPlayedNotesArgumentDefinition:
+        return PlayedNotesArgumentDefinition(argumentNumberRange, matchPredicates, argumentProcessor=argumentProcessor)
+    return MIDIMessageArgumentDefinition(matchPredicates, argumentProcessor=argumentProcessor)
 
 
 def parseArgumentNumberRange(parseBuffer):
@@ -443,7 +431,40 @@ def parsePositiveInteger(parseBuffer):
     return int(parseBuffer.stringFrom(startPosition, parseBuffer.at()))
 
 
-def parseArgumentProcessor(parseBuffer, argumentFormats, allowArgumentSeperator=True):
+def parseArgumentProcessor(parseBuffer, namedArgumentFormats, fStringArgumentFormatType, allowArgumentSeparator=True):
+    def parseJoiningArgumentProcessor():
+        argumentSeparator = " " if allowArgumentSeparator else None
+        parsedArgumentSeparator = False
+        if allowArgumentSeparator and parseBuffer.getCurrentChar() == "[":
+            argumentSeparator = parseArgumentSeparator(parseBuffer)
+            parsedArgumentSeparator = True
+        if bufferHasSubstring(parseBuffer, 'f"'):
+            return JoiningArgumentProcessor(argumentSeparator, fStringArgumentFormatType(parseFString(parseBuffer)))
+        else:
+            namedArgumentFormatStringStart = parseBuffer.at()
+            parseBuffer.skipTillChar(",)", terminateOnWhitespace=True, terminateAtEndOfLine=True)
+            namedArgumentFormatString = parseBuffer.stringFrom(
+                namedArgumentFormatStringStart, parseBuffer.at()
+            )
+            if not namedArgumentFormatString in namedArgumentFormats:
+                replaceStringExpectedSpecifier = (
+                    " or replace string"
+                    if (not parsedReplaceString and not parsedArgumentSeparator)
+                    else ""
+                )
+                argumentSeparatorExpectedSpecifier = (
+                    " or argument separator"
+                    if allowArgumentSeparator and not parsedArgumentSeparator
+                    else ""
+                )
+                otherExpectedSpecifier = f"f-string argument format{replaceStringExpectedSpecifier}{argumentSeparatorExpectedSpecifier}"
+                parseBuffer.jump(namedArgumentFormatStringStart)
+                generateParseError(
+                    parseBuffer,
+                    f'one of {"|".join(namedArgumentFormats.keys())} or {otherExpectedSpecifier}',
+                )
+            return JoiningArgumentProcessor(argumentSeparator, namedArgumentFormats[namedArgumentFormatString])
+
     if parseBuffer.getCurrentChar() != "(":
         generateParseError(
             parseBuffer,
@@ -452,51 +473,40 @@ def parseArgumentProcessor(parseBuffer, argumentFormats, allowArgumentSeperator=
         )
     parseBuffer.skip(1)
     parseBuffer.skipTillData()
-    replaceString = None
     parsedReplaceString = False
     if parseBuffer.getCurrentChar() == '"':
-        replaceString = parseQuotedString(parseBuffer)
-        replaceString = replaceString if replaceString else None
-        parseBuffer.eatWhitespace()
-        eatArrow(parseBuffer)
-        parseBuffer.eatWhitespace()
         parsedReplaceString = True
-    argumentSeperator = " " if allowArgumentSeperator else None
-    parsedArgumentSeperator = False
-    if allowArgumentSeperator and parseBuffer.getCurrentChar() == "[":
-        argumentSeperator = parseArgumentSeperator(parseBuffer)
-        parsedArgumentSeperator = True
-    if bufferHasSubstring(parseBuffer, 'f"'):
-        argumentFormat = parseFString(parseBuffer)
-    else:
-        argumentFormatStringStart = parseBuffer.at()
-        parseBuffer.skipTillChar(")")
-        argumentFormatString = parseBuffer.stringFrom(
-            argumentFormatStringStart, parseBuffer.at()
-        )
-        if not argumentFormatString in argumentFormats:
-            replaceStringExpectedSpecifier = (
-                " or replace string"
-                if (not parsedReplaceString and not parsedArgumentSeperator)
-                else ""
-            )
-            argumentSeperatorExpectedSpecifier = (
-                " or argument seperator"
-                if allowArgumentSeperator and not parsedArgumentSeperator
-                else ""
-            )
-            otherExpectedSpecifier = f"f-string argument format{replaceStringExpectedSpecifier}{argumentSeperatorExpectedSpecifier}"
-            parseBuffer.jump(argumentFormatStringStart)
+        replacements = []
+        while parseBuffer.getCurrentChar() == '"':
+            replaceString = parseQuotedString(parseBuffer)
+            parseBuffer.eatWhitespace()
+            eatArrow(parseBuffer)
+            parseBuffer.eatWhitespace()
+            replacements.append((replaceString, parseJoiningArgumentProcessor()))
+            parseBuffer.skipTillData()
+            if parseBuffer.getCurrentChar() == ",":
+                parseBuffer.skip(1)
+                parseBuffer.skipTillData()
+            elif parseBuffer.getCurrentChar() != ")":
+                generateParseError(
+                    parseBuffer,
+                    ", or )",
+                    parseBuffer.getCurrentChar(),
+                )
+        if parseBuffer.getCurrentChar() != ")":
             generateParseError(
                 parseBuffer,
-                f'one of {"|".join(argumentFormats.keys())} or {otherExpectedSpecifier}',
+                "replace string or )",
+                parseBuffer.getCurrentChar(),
             )
-        argumentFormat = argumentFormats[argumentFormatString]
-    parseBuffer.skipTillData()
-    if parseBuffer.getCurrentChar() != ")":
-        generateParseError(parseBuffer, ")", parseBuffer.getCurrentChar())
+        argumentProcessor = ScriptPreprocessor(replacements)
+    else:
+        argumentProcessor = parseJoiningArgumentProcessor()
+        parseBuffer.skipTillData()
+        if parseBuffer.getCurrentChar() != ")":
+            generateParseError(parseBuffer, ")", parseBuffer.getCurrentChar())
     parseBuffer.skip(1)
-    return argumentFormat, replaceString, argumentSeperator
+    return argumentProcessor
 
 
 def parseQuotedString(parseBuffer, quoteChar='"'):
@@ -534,22 +544,22 @@ def eatQuotedString(parseBuffer, quoteChar='"'):
     return readQuotedString(parseBuffer, quoteChar, False)
 
 
-def parseArgumentSeperator(parseBuffer):
+def parseArgumentSeparator(parseBuffer):
     if parseBuffer.getCurrentChar() != "[":
         generateParseError(
-            parseBuffer, "argument seperator", parseBuffer.getCurrentChar()
+            parseBuffer, "argument separator", parseBuffer.getCurrentChar()
         )
     parseBuffer.skip(1)
     if parseBuffer.getCurrentChar() == '"':
-        seperator = parseQuotedString(parseBuffer)
+        separator = parseQuotedString(parseBuffer)
         if not parseBuffer.getCurrentChar() == "]":
             generateParseError(parseBuffer, "]", parseBuffer.getCurrentChar())
     else:
         startPosition = parseBuffer.at()
         parseBuffer.skipTillChar("]")
-        seperator = parseBuffer.stringFrom(startPosition, parseBuffer.at())
+        separator = parseBuffer.stringFrom(startPosition, parseBuffer.at())
     parseBuffer.skip(1)
-    return seperator
+    return separator
 
 
 def bufferHasSubstring(parseBuffer, substring):
@@ -571,6 +581,12 @@ def eatPythonString(parseBuffer):
     escaping = False
     consecutiveUnescapedQuotes = 0
     while True:
+        atEndOfLine = parseBuffer.atEndOfLine()
+        if isDocstring and atEndOfLine:
+            consecutiveUnescapedQuotes = 0
+            escaping = False
+            parseBuffer.newline()
+            continue
         if parseBuffer.getCurrentChar() == quoteChar and not escaping:
             if not isDocstring or consecutiveUnescapedQuotes == 2:
                 break
@@ -621,13 +637,13 @@ def parseScriptFlags(parseBuffer):
     if not parseBuffer.getCurrentChar() == "[":
         generateParseError(parseBuffer, "script flags", parseBuffer.getCurrentChar())
     parseBuffer.skip(1)
-    afterSeperator = parseBuffer.at()
+    afterSeparator = parseBuffer.at()
     parseBuffer.eatWhitespace()
     flags = NONE
     keyValueFlags = {}
     while True:
         if parseBuffer.getCurrentChar() in "|]=":
-            parseBuffer.jump(afterSeperator)
+            parseBuffer.jump(afterSeparator)
             generateParseError(parseBuffer, None, "empty script flag")
         flagStart = parseBuffer.at()
         parseBuffer.skipTillChar("|]=", terminateOnWhitespace=True)
@@ -661,7 +677,7 @@ def parseScriptFlags(parseBuffer):
             break
         elif parseBuffer.getCurrentChar() == "|":
             parseBuffer.skip(1)
-            afterSeperator = parseBuffer.at()
+            afterSeparator = parseBuffer.at()
             parseBuffer.eatWhitespace()
         else:
             equalsExpectedSpecifier = " or =" if not parsedKeyValue else ""

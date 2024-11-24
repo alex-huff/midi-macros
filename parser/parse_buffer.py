@@ -44,9 +44,10 @@ class ParseBuffer:
     def skip(self, number):
         self.positionInLine += number
 
-    def skipTillChar(self, chars, terminateOnWhitespace=False):
+    def skipTillChar(self, chars, terminateOnWhitespace=False, terminateAtEndOfLine=False):
         while not (
-            self.getCurrentChar() in chars
+            (terminateAtEndOfLine and self.atEndOfLine())
+            or self.getCurrentChar() in chars
             or (terminateOnWhitespace and self.getCurrentChar().isspace())
         ):
             self.skip(1)

@@ -76,18 +76,20 @@ class Script:
             if INVOCATION_FORMAT in self.keyValueFlags
             else None
         )
+        self.isPreprocessed = isinstance(self.argumentDefinition.getArgumentProcessor(), ScriptPreprocessor)
+        self.hasMIDIArgumentDefinition = isinstance(self.argumentDefinition, MIDIMessageArgumentDefinition)
         self.argumentsOverSTDIN = (
-            argumentDefinition.getShouldProcessArguments()
+            argumentDefinition.shouldProcessArguments()
             or self.invocationFormat != None
-        ) and not self.argumentDefinition.getReplaceString()
+        ) and not self.isPreprocessed
         self.scriptPathAsEnvVar = self.flags & SCRIPT_PATH_AS_ENV_VAR or (
             self.interpreter and self.argumentsOverSTDIN
         )
         self.scriptOverSTDIN = self.interpreter and not self.scriptPathAsEnvVar
         if self.flags & BACKGROUND:
-            if self.argumentDefinition.getReplaceString():
+            if self.isPreprocessed:
                 raise ScriptError(
-                    f"{BACKGROUND_KEY} script cannot use a replace string"
+                    f"{BACKGROUND_KEY} script cannot be preprocessed"
                 )
             if self.flags & DEBOUNCE:
                 raise ScriptError(
@@ -105,7 +107,7 @@ class Script:
                     f"{KILL_KEY} can only be used on {BACKGROUND_KEY} scripts"
                 )
         if self.flags & PERMIT_EXTRA:
-            if isinstance(self.argumentDefinition, MIDIMessageArgumentDefinition):
+            if self.hasMIDIArgumentDefinition:
                 raise ScriptError(
                     f"{PERMIT_EXTRA_KEY} cannot be used with MIDI argument definitions"
                 )
@@ -265,44 +267,48 @@ class Script:
     def invoke(self, context):
         trigger, arguments = context
         if (
-            not self.argumentDefinition.getShouldProcessArguments()
+            not self.argumentDefinition.shouldProcessArguments()
             and self.invocationFormat == None
         ):
             if not self.flags & BACKGROUND:
                 self.runProcess(self.script)
             return
         try:
-            processedArguments = self.formatArguments(
+            processArgumentsResult = (
                 self.argumentDefinition.processArguments(trigger, arguments)
-                if self.argumentDefinition.getShouldProcessArguments()
+                if self.argumentDefinition.shouldProcessArguments()
                 else ""
             )
+            match (processArgumentsResult):
+                case str():
+                    scriptInput = self.formatArguments(processArgumentsResult)
+                case list():
+                    processedScript = self.script
+                    for replaceString, processedArguments in processArgumentsResult:
+                        processedScript = processedScript.replace(replaceString, self.formatArguments(processedArguments))
+                    self.runProcess(processedScript)
+                    return
         except Exception as exception:
             logError(
-                f"failed to process arguments with argument format: {self.argumentDefinition.getArgumentFormat()} and invocation format: {self.invocationFormat}\nreason: {exception}"
+                f"failed to process arguments with argument processor: {self.argumentDefinition.getArgumentProcessor()} and invocation format: {self.invocationFormat}\nreason: {exception}"
             )
             return
-        replaceString = self.argumentDefinition.getReplaceString()
-        if replaceString:
-            self.runProcess(self.script.replace(replaceString, processedArguments))
+        if self.flags & BACKGROUND and self.backgroundProcess:
+            if self.backgroundProcess.stdin:
+                try:
+                    self.backgroundProcess.stdin.write(scriptInput)
+                    self.backgroundProcess.stdin.flush()
+                except Exception as exception:
+                    logError(
+                        f"failed to send arguments to background process: {exceptionStr(exception)}"
+                    )
         else:
-            if self.flags & BACKGROUND and self.backgroundProcess:
-                if self.backgroundProcess.stdin:
-                    try:
-                        self.backgroundProcess.stdin.write(processedArguments)
-                        self.backgroundProcess.stdin.flush()
-                    except Exception as exception:
-                        logError(
-                            f"failed to send arguments to background process: {exceptionStr(exception)}"
-                        )
-            else:
-                self.runProcess(self.script, processedArguments)
+            self.runProcess(self.script, scriptInput)
 
     def queueIfShould(self, trigger, arguments, hadExtraMessageSincePress):
         if not self.argumentDefinition.argumentsMatch(trigger, arguments):
             return
-        hasMIDIArgumentDefinition = isinstance(self.argumentDefinition, MIDIMessageArgumentDefinition)
-        if not hasMIDIArgumentDefinition and hadExtraMessageSincePress and not self.flags & PERMIT_EXTRA:
+        if not self.hasMIDIArgumentDefinition and hadExtraMessageSincePress and not self.flags & PERMIT_EXTRA:
             return
         self.queue(trigger, arguments)
 
